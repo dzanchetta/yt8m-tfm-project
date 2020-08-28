@@ -1,0 +1,16 @@
+PyDrive
+pyspark
+python-dateutil
+fasttext
+wget
+contractions
+emoji
+emot
+num2words
+unidecode
+sqlite3
+nltk
+pandas
+numpy
+wordcloud
+Pillow

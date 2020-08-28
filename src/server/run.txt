@@ -1,0 +1,16 @@
+http://localhost:8080/?q=The+best+video+music+and+film+with+exercises+and+friend+and+feeling&debug=1
+
+python server.py
+
+pip install contractions emoji emot num2words unidecode sqlite3 --upgrade
+
+afiliados amazon: bf00d-21
+
+amazon asin list: https://archive.org/download/asin_listing/asins.txt.gz
+amazon product data: http://snap.stanford.edu/data/amazon/productGraph/
+http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/
+
+https://gist.github.com/ThilinaRajapakse/f55d20b6ec2c6bd281ab575e40d6ceff
+https://gist.github.com/ThilinaRajapakse/d1886beba54c9269466db73e984b605a
+wget -i meta_links.txt
+wget -i qa_links.txt
