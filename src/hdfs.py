@@ -14,8 +14,14 @@ def read_from_drive():
         file_id = file['id']
         downloaded = drive.CreateFile({'id': file_id})
         downloaded.GetContentFile(filename=file['title'])
-    #Download the files with the video content and transcriptions
-    fileList = drive.ListFile({'q': "'1v2ZiYqVY3Ztg-DqioeAQR8w84Zq7FFg1' in parents and trashed=false"}).GetList()
+    #Download the files with the video transcriptions
+    fileList = drive.ListFile({'q': "'1ICw6MyGjvVQNblnlNTSIeiOXZyBlZCHb' in parents and trashed=false"}).GetList()
+    for file in fileList:
+        file_id = file['id']
+        downloaded = drive.CreateFile({'id': file_id})
+        downloaded.GetContentFile(filename=file['title'])
+    # Download the files with the video content
+    fileList = drive.ListFile({'q': "'1bw9JK6r2PEmzDlsAxAKQe_3rDa6V1M7F' in parents and trashed=false"}).GetList()
     for file in fileList:
         file_id = file['id']
         downloaded = drive.CreateFile({'id': file_id})
@@ -30,6 +36,7 @@ print('Start Reading from Drive')
 read_from_drive()
 print('Finished reading')
 
+'''
 print('Starting Unzipping Comments')
 unzip('/Users/daniel/LocalFiles for TFM/youtubeProjectTFM/src/comments.zip',
       '../data/')
@@ -39,3 +46,4 @@ print('Starting Unzipping Video Content Files')
 unzip('/Users/daniel/LocalFiles for TFM/youtubeProjectTFM/src/yt8m.zip',
       '../data/')
 print('Finished')
+'''
