@@ -75,7 +75,8 @@ def clean_text(text):
     text = text.strip(' ')
     return text
 
-def get_comment_threads(youtube,video_id,comments=[],token=""):
+def get_comment_threads(youtube,video_id,token=""):
+    comments=[]
     results=youtube.commentThreads().list(part="snippet",
                                           pageToken=token,
                                           videoId=video_id,
@@ -89,16 +90,14 @@ def get_comment_threads(youtube,video_id,comments=[],token=""):
         text_clean=clean_text(text)
         comments.append(text_clean)
 
-    #Recursive call to this method if there is more comments. Otherwise, return the list of comments appended
-    if "nextPageToken" in results:
-        return get_comment_threads(youtube, video_id, comments, results["nextPageToken"])
-    else:
-        return comments
+    return comments
 
 def count_comments_per_sentiment(video_comment_threads):
     positive=0
     negative=0
     neutral=0
+    # Perform sentiment analysis and return a compound score
+    sia = SentimentIntensityAnalyzer()
     for i in range(0, len(video_comment_threads)):
         comment = video_comment_threads[i]
         score = sia.polarity_scores(comment)
@@ -106,33 +105,32 @@ def count_comments_per_sentiment(video_comment_threads):
             positive += 1
         elif score["compound"] > -0.05 and score["compound"] < 0.05:
             neutral += 1
-        else:
+        elif score["compound"]<=-0.05:
             negative +=1
     return positive,neutral,negative
 
 if __name__=="__main__":
-    argparser.add_argument("--videoid", help="Required; ID for video for which the comment will be inserted.")
+    #argparser.add_argument("--videoid", help="Required; ID for video for which the comment will be inserted.")
     args=argparser.parse_args()
-    if not args.videoid:
-        exit("Please specify videoid")
-
+    #if not args.videoid:
+    #    exit("Please specify videoid")
     youtube=get_authenticated_service(args)
-    try:
-        video_comment_threads=get_comment_threads(youtube,args.videoid)
-        #Perform sentiment analysis and return a compound score
-        sia=SentimentIntensityAnalyzer()
-        #open and write the compounds file
-        with open('compounds.csv','w') as csvfile:
-            writer=csv.writer(csvfile)
-            positive_comments,neutral_comments,negative_comments=count_comments_per_sentiment(video_comment_threads)
-            writer.writerow(["Video Id", "Positive Comments","Neutral Comments" ,"Negative Comments"])
-            writer.writerow([args.videoid,positive_comments, neutral_comments,negative_comments])
-            #REMOVE THESE LINES BELOW AFTER SHOWING TO BRUNO
-            for i in range(0, len(video_comment_threads)):
-                comment = video_comment_threads[i]
-                score = sia.polarity_scores(comment)
-                writer.writerow([comment,score["compound"]])
-            #
-    except HttpError as e:
-        print("An Http error %d occurred:\n%s" % (e.resp.status,e.content))
-        pass
+    with open('/Users/daniel/LocalFiles for TFM/youtubeProjectTFM/definitive_videoids_updated_20200901.txt','r') as input:
+        for line in input:
+            videoid = line.strip()
+            try:
+                video_comment_threads=[]
+                video_comment_threads=get_comment_threads(youtube,videoid)
+                #open and write the compounds file
+                with open('sentiment_analysis.csv','a') as csvfile:
+                    writer=csv.writer(csvfile)
+                    #Initialize variables
+                    positive_comments=0
+                    neutral_comments=0
+                    negative_comments=0
+                    #Calculate the sentiment analysis
+                    positive_comments,neutral_comments,negative_comments=count_comments_per_sentiment(video_comment_threads)
+                    #writer.writerow(["Video Id", "Positive Comments","Neutral Comments" ,"Negative Comments"])
+                    writer.writerow([videoid,positive_comments, neutral_comments,negative_comments])
+            except Exception as e:
+                print("An Http error %d occurred:\n%s" % (e.resp.status,e.content) + 'Video Id: '+videoid)
