@@ -11,7 +11,7 @@ find . -name "*.vtt" -exec python vtt2text.py {} \;
 
 import sys
 import re
-
+import os
 
 def remove_tags(text):
     """
@@ -83,22 +83,25 @@ def merge_short_lines(lines):
     yield buffer
 
 def main():
-    vtt_file_name = sys.argv[1]
-    txt_name =  re.sub(r'.vtt$', '.txt', vtt_file_name)
-    with open(vtt_file_name) as f:
-        text = f.read()
-    text = remove_tags(text)
-    lines = text.splitlines()
-    lines = remove_header(lines)
-    lines = merge_duplicates(lines)
-    lines = list(lines)
-    lines = merge_short_lines(lines)
-    lines = list(lines)
+    path = "/Users/daniel/LocalFiles for TFM/Files/ALL_Transcripts/"
+    with os.scandir(path) as entries:
+        for entry in entries:
+            file_path=path + entry.name
+            txt_name = re.sub(r'.vtt$', '.txt', file_path)
+            with open(file_path) as f:
+                text = f.read()
+            text = remove_tags(text)
+            lines = text.splitlines()
+            lines = remove_header(lines)
+            lines = merge_duplicates(lines)
+            lines = list(lines)
+            lines = merge_short_lines(lines)
+            lines = list(lines)
 
-    with open(txt_name, 'w') as f:
-        for line in lines:
-            f.write(line)
-            f.write("\n")
+            with open(txt_name, 'w') as f:
+                for line in lines:
+                    f.write(line)
+                    f.write("\n")
 
 
 
