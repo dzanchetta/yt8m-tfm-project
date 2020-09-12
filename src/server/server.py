@@ -1,182 +1,311 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import sqlite3
+import json
+import re
 
-def index_form(q):
-    if q != None:
-        value = str(q)
-    else:
-        value = ''
-    return """<form>
-        <div class="container h-100">
-          <div class="d-flex justify-content-center h-100">
-            <div class="searchbar">
-              <input class="search_input" type="text" name="q" value='""" + value + """' placeholder="Search and press Enter...">
-              <a href="#" class="search_icon"><i class="fas fa-search"></i></a>
-            </div>
-          </div>
-        </div>
-    </form>"""
+from search import preprocess, get_sql, calculate_score
 
-index_start = """
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
-    <title>Youtube Search Engine</title>
-    <style>
-    body,html{
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    background: white !important;
-    }
 
-    .searchbar{
-    margin-bottom: auto;
-    margin-top: auto;
-    height: 60px;
-    background-color: #353b48;
-    border-radius: 30px;
-    padding: 10px;
-    }
+class Debug:
+    def __init__(self, level=0):
+        self.min_level = level
+        print(f'Debug:\n\t0 - Error\n\t1 - Warning\n\t2 - Info')
+        self.set(level)
 
-    .search_input{
-    color: white;
-    border: 0;
-    outline: 0;
-    background: none;
-    width: 0;
-    caret-color:transparent;
-    line-height: 40px;
-    transition: width 0.4s linear;
-    }
+    def set(self, level):
+        if level < self.min_level:
+            return
+        else:
+            self.level = level
+            print(f'Actual: {self.level}')
 
-    .searchbar > .search_input{
-    padding: 0 10px;
-    width: 450px;
-    caret-color:red;
-    transition: width 0.4s linear;
-    }
+    def e(self, value, title=None):
+        if self.level > 0: self._print(value, title)
 
-    .searchbar > .search_icon{
-    background: white;
-    color: #e74c3c;
-    }
+    def w(self, value, title=None):
+        if self.level > 1: self._print(value, title)
 
-    .search_icon{
-    height: 40px;
-    width: 40px;
-    float: right;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 50%;
-    color:white;
-    text-decoration:none;
-    }</style>
-  </head>
-  <body>
-  <br><br>
-  <div class="container">
-    <div class="container h-100">
-        <div class="d-flex justify-content-center h-100">
-            <h1>Youtube Search Engine</h1>
-        </div>
-    </div>
-"""
-index_end = '</div></body></html>'
+    def i(self, value, title=None):
+        if self.level > 2: self._print(value, title)
+
+    def _print(self, value, title=None):
+        try:
+            if isinstance(title, str): print(title + ':')
+            print(value)
+        except Exception as err:
+            print('Debug error: ' + str(err))
+            raise
+
+
+class Database:
+    def __init__(self):
+        # cache database to memory
+        # create in memory database
+        self.conn = sqlite3.connect("file::memory:?cache=shared", uri=True)
+        self.conn.row_factory = sqlite3.Row
+
+        # pragmas
+        self.conn.execute('pragma foreign_keys = off')
+
+        # cursor
+        self.cur = self.conn.cursor()
+
+        # load
+        self._load()
+        # check
+        self._check()
+
+    def _load(self):
+        # load disk database to in memory database
+        def progress(status, remaining, total):
+            DEBUG.i(f'Copied {total - remaining} of {total} pages to memory...')
+
+        try:
+            local = sqlite3.connect("database.sqlite")
+            local.backup(self.conn, progress=progress)
+            local.close()
+        except AttributeError:
+            cur = self.conn.cursor()
+            self.cur.execute("ATTACH DATABASE 'database.sqlite' AS local")
+            cur.execute("SELECT name FROM local.sqlite_master WHERE type = 'table'")
+            rows = cur.fetchall()
+            for row in rows:
+                cur.execute("CREATE TABLE " + row['name'] + " AS SELECT * FROM local." + row['name'])
+            self.cur.execute("DETACH DATABASE local")
+
+    def _check(self):
+        # check
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT COUNT(1) AS CNT FROM dictionary")
+            row = cur.fetchall()
+            DEBUG.i(f"{row[0]['CNT']} words in dictionary...")
+        except Exception as err:
+            DEBUG.e(err)
+            raise
+        finally:
+            cur.close()
+
+    def new(self):
+        conn = sqlite3.connect("file::memory:?cache=shared")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def query(self, sql, binds=None):
+        try:
+            cur = self.conn.cursor()
+
+            if binds is None:
+                self.cur.execute(sql)
+            else:
+                self.cur.execute(sql, binds)
+
+            # get results
+            rows = self.cur.fetchall()
+
+            result = []
+            for row in rows:
+                result.append(dict(row))
+
+            cur.close()
+            return result
+        except:
+            try:
+                cur.close()
+            except:
+                None
+            finally:
+                return None
+
+    def close(self):
+        try:
+            self.conn.close()
+        except:
+            None
+
+    def __del__(self):
+        self.close()
+
+
+class Cache:
+    def __init__(self):
+        # cache files to memory
+        self._cache = {}
+
+    def _load(self, filename, type='r'):
+        with open(filename, type) as f:
+            content = f.read()
+        self._cache[filename] = content
+
+    def exist(self, filename):
+        if filename in self._cache:
+            return True
+        else:
+            return False
+
+    def get(self, filename):
+        if self.exist(filename):
+            return self._cache[filename]
+        else:
+            DEBUG.i(filename, 'Not exist!')
+            return None
+
+    def html(self, filename):
+        self._load(filename)
+        self._cache[filename] = self._cache[filename].replace('\t', ' ')
+        self._cache[filename] = re.sub(' +', ' ', self._cache[filename])
+        self._cache[filename] = self._cache[filename].encode("utf-8")
+
+    def binary(self, filename):
+        self._load(filename, 'rb')
+
+    def text(self, filename):
+        self._load(filename)
+        self._cache[filename] = self._cache[filename].encode("utf-8")
+
 
 class GetHandler(BaseHTTPRequestHandler):
 
-    def do_HEAD(self):
+    # def __init__(self, *args, **kwargs):
+    # def __del__(self):
+
+    def _set_headers(self, type='text/html'):
         self.send_response(200)
-        self.send_header("Content-type", "text/html")
+        self.send_header('Content-Type', type)
         self.end_headers()
+
+    def _send(self, data):
+        try:
+            if data is None:
+                raise
+            else:
+                self.wfile.write(data)
+        except:
+            self.wfile.write(''.encode("utf-8"))
+
+    def do_HEAD(self):
+        self._set_headers()
 
     def do_GET(self):
-        def x(html):
+        # url
+        url = urlparse(self.path)
+        # get all arguments
+        argv = parse_qs(url.query)
+
+        # check database
+        DATABASE._check()
+
+        if url.path.startswith("/favicon.ico"):
+            self._set_headers('image/png')
+            self._send(CACHE.get('favicon.ico'))
+
+        if url.path.startswith("/search"):  # search for a result
+            self._set_headers()
+
+            # debug??
             try:
-                self.wfile.write(html.encode())
+                if argv['debug']:
+                    debug = argv['debug']
+                else:
+                    raise
             except:
-                self.wfile.write(b'Erro!')
+                debug = 0
 
-        def d(var):
-            print('DEBUG:')
-            print(var)
-            x('DEBUG:<br>' + str(var) + '<br>')
+            DEBUG.i(debug, 'Get debug string')
+            DEBUG.set(debug)
 
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        # <--- HTML starts here --->
-        x(index_start)
-
-        argv = parse_qs(urlparse(self.path).query)
-
-        try:
-          if argv['debug']:
-            debug = True
-        except: debug = False
-
-        try:
-            search = str(argv['q'][0])
-            if(len(search) < 1):
+            # get search string
+            try:
+                search = str(argv['q'][0])
+                if search is None or len(search) < 1: raise ValueError('Search len < 1')
+            except ValueError as err:
+                DEBUG.w(err, 'Get search string')
                 search = None
-        except: search = None
+            except Exception as err:
+                DEBUG.e(err, 'Get search string')
+                search = None
 
-        x(index_form(search))
+            # nothing to search
+            if search == None:
+                DEBUG.w(search, 'Search is empty')
+                self._send(None)
+                return
 
-        if search != None:
-            #x('<h2>Search for:</h2>' + search + '<br>')
-            #try:
-            from search import preprocess, do_search, calculate_score
-            tokens = preprocess(search)
-            if(len(tokens) < 1):
-              if debug: d('Tokens len < 1')
-              raise
-            results = do_search(tokens)
-            final = calculate_score(results)
-            #except:
-                #results = None
+            # search
+            try:
+                # cleanup
+                tokens = preprocess(search)
+                DEBUG.w(tokens, 'Tokens (preprocess)')
+                if tokens is None or len(tokens) < 1: raise ValueError('Tokens len < 1')
 
-            #x('<h2>Results:</h2>')
-            x('<div class="container h-100">')
-            if final != None:
-                for i in final:
-                    x("""<div class="row border py-2 px-2 my-2">
-                            <div class="w-25 p-3 mw-200">
-                                <img width="200" src=""" + str(i['Thumbnail']) + """>
-                            </div>
-                            <div class="w-75 p-3 my-auto mx-auto">
-                                <a target="_blank" href=""" + str(i['URL']) + """>""" + str(i['Title']) + """</a><br>
-                                Score: """ + str(i['Score']) + """
-                            </div>
-                    </div>""")
-            else:
-                if debug: d('final is None')
-                x('<p>Not found!</p>')
-            x('</div>')
+                # query
+                sql = get_sql(tokens)
+                # DEBUG.w(sql, 'Query')
+                results = DATABASE.query(sql, tokens)
+                # DEBUG.w(results, 'Results (get_sql, query)')
+                if results is None or len(results) < 1: raise ValueError('Results len < 1')
 
-        #x('<p>Path: ' + self.path + '</p>')
-        #x('<p>Headers: ' + '<br>'.join(self.headers) + '</p>')
+                # calculate the score
+                sorted = calculate_score(results)
 
-        if debug: d(tokens)
-        if debug: d(final)
-        if debug: d(results)
+                # send results
+                self._send(json.dumps(sorted).encode("utf-8"))
 
-        x(index_end)
+            except ValueError as err:
+                DEBUG.w(err)
+                self._send(json.dumps('').encode("utf-8"))
+                return
+            except Exception as err:
+                DEBUG.e('Exception on search: ' + str(err))
+                self._send(json.dumps('').encode("utf-8"))
+                return
+
+        else:  # all other get
+            self._set_headers()
+
+            # reload cache??
+            try:
+                if argv['cache'] != '':
+                    DEBUG.i('Reload cache...')
+                    CACHE.html('index.html')
+                    CACHE.binary('favicon.ico')
+                    CACHE.text('wordcloud2.min.js')
+            except:
+                None
+
+            # in cache?
+            filename = url.path[1:]  # remove the first char -> "/"
+            if CACHE.exist(filename) == False:
+                filename = 'index.html'
+
+            # send
+            self._send(CACHE.get(filename))
+
 
 if __name__ == '__main__':
     try:
-        server = HTTPServer(('', 8080), GetHandler)
+        DEBUG = Debug(100)
+
+        # cache database to memory
+        # create in memory database
+        DATABASE = Database()
+
+        # cache files to memory
+        CACHE = Cache()
+        # index.html
+        CACHE.html('index.html')
+        # favicon.ico
+        CACHE.binary('favicon.ico')
+        # others
+        CACHE.text('wordcloud2.min.js')
+
+        # open http server
+        server = HTTPServer(('', 80), GetHandler)
         print('Starting server, use <Ctrl + F2> to stop')
         server.serve_forever()
     except KeyboardInterrupt:
+        # close http server
         server.socket.close()
+        # close in memory databse
+        DATABASE.close()

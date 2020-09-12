@@ -18,7 +18,6 @@ from unidecode import unidecode
 
 import sqlite3
 
-from dateutil.parser import parse
 #punctuation
 punctuation_table = "[{0}]".format(re.escape(string.punctuation))
 
@@ -160,21 +159,8 @@ def preprocess(text):
 
   return tokens
 
-conn = sqlite3.connect("database.sqlite")
-conn.row_factory = sqlite3.Row
-
-def query(sql, binds):
-  cur = conn.cursor()
-  cur.execute(sql, binds)
-  rows = cur.fetchall()
-  
-  result = []
-  for row in rows:
-    result.append(dict(row))
-  return result
-
-def do_search(tokens):
-  return query("""SELECT A.VideoPK, A.ChannelPK, A.ScoreVideo, A.ScoreChannel
+def get_sql(tokens):
+  return """SELECT A.VideoPK, A.ChannelPK, A.ScoreVideo, A.ScoreChannel
     ,V.DislikeCount AS DislikeCountVideo
     ,V.LikeCount AS LikeCountVideo
     ,V.Date AS DateVideo
@@ -189,6 +175,36 @@ def do_search(tokens):
     ,C.Rating AS RatingChannel
     ,C.Duration AS DurationChannel
     ,C.ViewCount AS ViewCountChannel
+    ,sia.positive_comments AS PositiveComments
+	,sia.negative_comments AS NegativeComments
+    ,(
+        SELECT GROUP_CONCAT(X.Word)
+        FROM
+            (
+                SELECT D1.Word
+                FROM dictionary D1, word_by_video WV1
+                WHERE
+                    D1.WordPK = WV1.WordPK
+                    AND WV1.VideoPK = A.VideoPK
+                    AND D1.Word NOT LIKE '% %'
+                ORDER BY WV1.Score DESC, D1.WordPK
+                LIMIT 20
+            ) X
+    ) AS WordsVideo
+    ,(
+        SELECT GROUP_CONCAT(X.Score)
+        FROM
+            (
+                SELECT WV1.Score
+                FROM dictionary D1, word_by_video WV1
+                WHERE
+                    D1.WordPK = WV1.WordPK
+                    AND WV1.VideoPK = A.VideoPK
+                    AND D1.Word NOT LIKE '% %'
+                ORDER BY WV1.Score DESC, D1.WordPK
+                LIMIT 20
+            ) X
+    ) AS WordsScoreVideo
 FROM
     (
         SELECT WV.VideoPK, WV.ChannelPK, SUM(WC.Score) AS ScoreChannel, SUM(WV.Score) AS ScoreVideo
@@ -206,15 +222,24 @@ FROM
     ) A
     ,video V
     ,channel C
+    ,video_pk vpk
+	,sentiment_analysis sia
 WHERE
     A.VideoPK = V.VideoPK
-    AND A.ChannelPK = C.ChannelPK""".format(seq = ','.join(['?']*len(tokens))), tokens)
+    AND A.ChannelPK = C.ChannelPK
+    AND vpk.VideoPK = V.VideoPK
+	AND sia.video_id = vpk.Id""".format(seq = ','.join(['?']*len(tokens)))
 
 def calculate_score(rows):
   result = []
+
   for row in rows:
-    video = {'VideoPK': row['VideoPK'], 'Score': 0.0, 'Title': row['TitleVideo'], 'Thumbnail': row['ThumbnailVideo'], 'URL': row['URLVideo']}
-    try: video['Score'] = row['ScoreVideo'] * row['ScoreChannel']
+    #Words
+    try: words = [list(x) for x in zip(row['WordsVideo'].split(','), row['WordsScoreVideo'].split(','))]
+    except: words = []
+
+    video = {'VideoPK': row['VideoPK'], 'Score': 0.0, 'Title': row['TitleVideo'], 'Thumbnail': row['ThumbnailVideo'], 'URL': row['URLVideo'], 'Words': words}
+    try: video['Score'] = row['ScoreVideo'] * 0.5 * row['ScoreChannel'] * 0.25 * (row['PositiveComments'] - row['NegativeComments'] * 0.10)
     except: None
     result.append(video)
   return sorted(result, key=lambda k: k['Score'], reverse=True)

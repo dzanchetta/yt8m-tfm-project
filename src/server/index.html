@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+	<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+
+	<script src="wordcloud2.min.js"></script>
+
+	<title>Youtube Search Engine</title>
+	<style>
+		body,html{
+		height: 100%;
+		width: 100%;
+		margin: 0;
+		padding: 0;
+		background: white !important;
+		}
+
+		.searchbar{
+		margin-bottom: auto;
+		margin-top: auto;
+		height: 60px;
+		background-color: #353b48;
+		border-radius: 30px;
+		padding: 10px;
+		}
+
+		.search_input{
+		color: white;
+		border: 0;
+		outline: 0;
+		background: none;
+		width: 0;
+		caret-color:transparent;
+		line-height: 40px;
+		}
+
+		.searchbar > .search_input{
+		padding: 0 10px;
+		width: 450px;
+		caret-color:red;
+		border-radius: 30px;
+		}
+
+		.searchbar > .search_icon{
+		margin-left: 5px;
+		background: white;
+		color: #e74c3c;
+		}
+
+		.search_icon{
+		height: 40px;
+		width: 40px;
+		float: right;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		border-radius: 50%;
+		color:white;
+		text-decoration:none;
+		}
+
+		.search_icon:hover{
+		cursor: pointer;
+		text-decoration:none;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+
+		<div class="container h-100" id="title">
+			<div class="d-flex justify-content-center h-100">
+			<h1>Youtube Search Engine</h1>
+			</div>
+		</div>
+
+		<div class="container h-100" id="search">
+			<div class="d-flex justify-content-center h-100">
+				<div class="searchbar">
+					<input class="search_input" type="search" name="q" placeholder="Search and press Enter..." id="search_input">
+					<a class="search_icon" id="search_icon"><i class="fas fa-search"></i></a>
+				</div>
+			</div>
+		</div>
+
+		<div class="container h-100" id="result">
+		</div>
+	</div>
+
+	<script>
+		//submit query
+		const search = async () => {
+			//search
+			let q = $("#search_input").val()
+			if(q == "") return false
+
+			//query string
+			let url = '/search?q=' + q
+
+			//debug??
+			if(qs.has('debug'))
+				url += '&debug=' + qs.get('debug')
+
+			//cleanup old results
+			$('#result').children().remove();
+
+			//do search
+			const response = await fetch(url);
+			//extract json from response
+			const json = await response.json();
+
+			//show results
+			let html = [];
+			
+			//empty?
+			if(json.length < 1)
+				html.push('<div class="row border py-2 px-2 my-2"><div class="w-100 p-3 my-auto mx-auto">Not found!!</div></div>');
+			else
+				$(json).map(function(i, item) {
+					//word2cloud canvas
+					let canvas = WordCloud.isSupported ? '<br><canvas id="word_cloud_' + item.VideoPK + '" class="word_cloud" width="400" height="200"></canvas>' : '';
+
+					//append results
+					$('#result').append(`
+						<div class="row border py-2 px-2 my-2">
+							<div class="w-25 p-3 mw-200">
+								<img width="200" src="${item.Thumbnail}">
+							</div>
+							<div class="w-75 p-3 my-auto mx-auto">
+								<a target="_blank" href="${item.URL}">${item.Title}</a><br>
+								Score: ${item.Score}
+								${canvas}
+							</div>
+						</div>`);
+
+					try {
+						//console.log(item.Words);
+						if(WordCloud.isSupported) {
+							config = {
+								'list': item.Words
+								,'weightFactor': function (size) { return size < 1 ? 1 : Math.pow(size, 2);}
+								,'rotateRatio': 0.5
+								,'rotationSteps': 2
+								,'minSize': 8
+								//,'fontFamily': 'Finger Paint, cursive, sans-serif'
+								//,'hover': window.drawBox
+								//,'click': function(item) {alert(item[0] + '= ' + item[1]);}
+								,'color': 'random-dark'
+								//,'gridSize': Math.round(16 * 400 / 1024)
+							};
+
+							WordCloud('word_cloud_'+ item.VideoPK, config);
+						}
+					} catch(e) {console.log(e.stack);}
+				});
+		}
+
+		//set query events
+		$("#search_icon").on("click",function(){search()});
+		$("#search_input").on("enterKey",function(){search()});
+		$("#search_input").on("search",function(){search()});
+
+		//query string 
+		let qs = new URLSearchParams(window.location.search)
+
+		//query?
+		if(qs.has('q')) {
+			$("#search_input").val(qs.get('q'));
+			search();
+		}
+	</script>
+</body>
+</html>
