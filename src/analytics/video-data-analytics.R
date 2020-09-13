@@ -20,5 +20,47 @@ json_files<-list.files(path =paste0(root_path,"Files/video-content/"),pattern="*
 json_list<-parLapply(cl,json_files,function(x) rjson::fromJSON(file=x,method = "R"))
 stopCluster(cl)
 
-jsonc <- toJSON(json_list)
-write(jsonc, file = "jsonc")
+class(json_list)
+# list
+length(json_list)
+# 72068
+lengths(json_list)
+# Each list with 64 elements
+
+# Missing values
+library("dplyr")
+library("tidyr")
+
+null_dislike_count <- 0
+null_like_count <- 0
+null_id_count <- 0
+null_channel_id_count <- 0
+null_categories_count <- 0
+null_description_count <- 0
+len <- length(json_list)
+
+function_is_null <- function(json_list){
+  for(i in 1:len){
+    print(i)
+    if (is.null(json_list[[i]][["dislike_count"]])){
+      null_dislike_count <- null_dislike_count + 1
+    }
+    if (is.null(json_list[[i]][["like_count"]])){
+      null_like_count <- null_like_count + 1
+    }
+    if (is.null(json_list[[i]][["id"]])){
+      null_id_count <- null_id_count + 1
+    }
+    if (is.null(json_list[[i]][["channel_id"]])){
+      null_channel_id_count <- null_channel_id_count + 1
+    }
+    if (is.null(json_list[[i]][["categories"]])){
+      null_categories_count <- null_categories_count + 1
+    }
+    if (is.null(json_list[[i]][["description"]])){
+      null_description_count <- null_description_count + 1
+    }
+  }
+}
+
+missing_values <- json_list %>% function_is_null()

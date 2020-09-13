@@ -1,7 +1,7 @@
 # Title     : TODO
 # Objective : TODO
 # Created by: daniel
-# Created on: 07/09/2020
+# Created on: 12/09/2020
 
 # References:
 # WordCloud: https://acadgild.com/blog/text-mining-using-r
@@ -38,16 +38,16 @@ file_df <- readtext(paste0(DATA_DIR,"Files/ALL_Transcripts/*.txt"))
 # Drop doc_id column
 file_df<- subset(file_df,select = -c(doc_id))
 file_df<- data.frame(Text = file_df)
-head(file_df)
+#head(file_df)
 
 # Process to clean the text
 print("Removing backslash")
 file_df_collapse<-gsub("\\\\","",file_df)
-head(file_df_collapse)
+#head(file_df_collapse)
 
 print("To lower case")
 file_df_collapse_lower <- tolower(file_df_collapse)
-head(file_df_collapse_lower)
+#head(file_df_collapse_lower)
 #Remove punctuation
 print("Removing punctuation")
 file_df_collapse_lower_rp <- gsub(pattern = "\\W", " ", file_df_collapse_lower)
@@ -57,12 +57,17 @@ file_df_collapse_lower_rp_rd <- gsub(pattern = "\\d", " ", file_df_collapse_lowe
 
 # TO BE CHECKED it stopwords is the best function, or if it is removing more than actually needed
 # stopwords()
-#print("Removing stop words")
+print("Removing stop words")
+# DOES NOT WORK, TAKING MORE THAN 6 HOURS TO EXECUTE AND NOT FINISHED
 #file_df_collapse_lower_rp_rd_sw <- removeWords(file_df_collapse_lower_rp_rd, words = stopwords("english"))
+library("parallel")
+cl <- makeCluster(detectCores() - 1)
+file_df_collapse_lower_rp_rd_sw<-parLapply(cl,file_df_collapse_lower_rp_rd,function(x) tm::removeWords(x,words = tm::stopwords("en")))
+stopCluster(cl)
 
 # Remove single letters
 print("Removing single letters")
-file_df_collapse_lower_rp_rd_sw_sl <- gsub(pattern = "\\b[A-z]\\b{1}"," ", file_df_collapse_lower_rp_rd)
+file_df_collapse_lower_rp_rd_sw_sl <- gsub(pattern = "\\b[A-z]\\b{1}"," ", file_df_collapse_lower_rp_rd_sw)
 
 # Remove white spaces using stripWhitespace() function,which is a part of  tm library.
 print("Removing white spaces")
@@ -72,11 +77,11 @@ file_df_collapse_lower_rp_rd_sw_sl_stp <- stripWhitespace(file_df_collapse_lower
 # Split individual words and add space between them
 print("Processing frequency words")
 file_df_collapse_lower_rp_rd_sw_sl_stp_f <- strsplit(file_df_collapse_lower_rp_rd_sw_sl_stp, " ")
-head(file_df_collapse_lower_rp_rd_sw_sl_stp_f)
+#head(file_df_collapse_lower_rp_rd_sw_sl_stp_f)
 
 # Creation of word frequency
 word_freq <- table(file_df_collapse_lower_rp_rd_sw_sl_stp_f)
-head(word_freq)
+#head(word_freq)
 
 word_freq1 <- cbind(names(word_freq),as.integer(word_freq))
 head(word_freq1)
@@ -102,9 +107,3 @@ word_cloud <- unlist(file_df_collapse_lower_rp_rd_sw_sl_stp_f)
 wordcloud(word_cloud,min.freq = 50, max.words=500, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,0.2))
 #Option 2
 wordcloud2(word_freq,color = "random-dark", backgroundColor = "white",size = 0.7)
-
-#N-grams
-# Find out the most common collocations. https://www.springboard.com/blog/text-mining-in-r/
-library("quanteda")
-#textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)
-print(removeFeatures(textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)))
