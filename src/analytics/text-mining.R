@@ -106,5 +106,7 @@ wordcloud2(word_freq,color = "random-dark", backgroundColor = "white",size = 0.7
 #N-grams
 # Find out the most common collocations. https://www.springboard.com/blog/text-mining-in-r/
 library("quanteda")
+# Quantitative Analysis of Textual Data
 #textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)
-print(removeFeatures(textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)))
+ngrams<-textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)
+print(ngrams)
