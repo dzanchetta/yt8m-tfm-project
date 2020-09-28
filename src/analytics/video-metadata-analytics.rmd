@@ -1,8 +1,12 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: daniel
-# Created on: 11/09/2020
+---
+title: "R Notebook"
+author: Group YoutubeFinder
+output: html_notebook
+---
+# Analytics of the Video Metadata datasets
+**Obs**: All the analysis performed throughout this R markdown is better explained in the written document. There it is detailed the motivations and reasoning for each process.
 
+```{r}
 library("readtext")
 library("jsonlite")
 library("rjson")
@@ -15,6 +19,7 @@ library("parallel")
 root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
 
+#Reading the files using parallel (takes on average 1h30min to finish)
 cl <- makeCluster(detectCores() - 1)
 #Parallel not functioning in RStudio https://github.com/rstudio/rstudio/issues/6692
 json_files<-list.files(path =paste0(root_path,"Files/video-content/"),pattern="*.json",full.names = TRUE)
@@ -27,8 +32,10 @@ length(json_list)
 # 72068
 lengths(json_list)
 # Each list with 64 elements
+```
 
-# Calculating missing values for the main elements in video metadata
+# Calculating **Missing Values** for the main elements in video metadata
+```{r}
 library("dplyr")
 library("tidyr")
 
@@ -73,12 +80,15 @@ cd274 <- melt(df[, 1:ncol(df)])
 ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
   labs(x='variable', y="number of missing values", title='Missing Values Analysis Main Variables') +
   coord_flip() + geom_text(aes(label=value))
+```
 
 # Language Detection Analysis
+
+## Test CLD3 package
+```{r}
 library("cld3")
 
 #Function works only for list type variables
-# Test CLD3
 fun_transf_df_language_detection_cld3 <- function(x,var1 = " ",var2=" "){
   len <- length(x)
   for(i in 1:len){
@@ -101,8 +111,10 @@ df_language_fulltitle <- fun_transf_df_language_detection_cld3(json_list,"fullti
 summary_cld3 <- df_language_fulltitle %>%
   group_by(Language_Detected) %>%
   summarise(count=n()) %>% arrange(desc(count))
+```
 
-# Test Textcat
+## Test Texcat package
+```{r}
 library("textcat")
 fun_transf_df_language_detection_textcat <- function(x,var1 = " ",var2=" "){
   len <- length(x)
@@ -126,7 +138,9 @@ df_language_fulltitle_textcat <- fun_transf_df_language_detection_textcat(json_l
 summary_textcat <- df_language_fulltitle_textcat %>%
   group_by(Language_Detected) %>%
   summarise(count=n()) %>% arrange(desc(count))
+```
 
+```{r}
 # Testing the results
 sample <- sample(1:length(json_list),round(0.0001*length(json_list)))
 for(i in 1:length(sample)){
@@ -138,8 +152,10 @@ for(i in 1:length(sample)){
       test_result[nrow(test_result)+1,] <- cbind(sample[i],json_list[[sample[i]]][["description"]])
     }
 }
+```
 
-# Verify how the dataset is balanced
+# Analysis to find out how the datasets are balanced
+```{r}
 definitive_ids <- read.delim(paste0(root_path,"Files/definitive_videoids_updated_20200901.txt"),header=FALSE,sep=" ",dec=" ")
 beauty_fitness <- read.delim(paste0(root_path,"Files/Beauty_Fitness.txt"),header=FALSE,sep=" ",dec=" ")
 books_literature <- read.delim(paste0(root_path,"Files/Books_Literature.txt"),header=FALSE,sep=" ",dec=" ")
@@ -236,8 +252,10 @@ melted <- melt(third_balance_test[, 1:ncol(third_balance_test)])
 ggplot(melted, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
   labs(x='YouTube-8M defined category name', y="number of video ids randomly selected", title='Number of IDs selected by Category in YouTube-8M') +
   coord_flip() + geom_text(aes(label=value))
+```
 
-# Check total number of video ids per each original file with category
+# Checking the total number of video ids per category from the **Original files in Youtube-8M**
+```{r}
 original_datasets_balance<-data.frame(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(computers_electronics),nrow(food_drink))
 colnames(original_datasets_balance) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
 View(original_datasets_balance)
@@ -249,15 +267,35 @@ ggplot(melted, aes(x = variable, y = value)) + geom_bar(stat = "identity",positi
   theme(axis.text.x = element_blank(),axis.ticks = element_blank())
 
 sum(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(computers_electronics),nrow(food_drink))
+```
 
-###
+```{r}
+# DISCLAIMER: Not working to open direct from HDFS.
+library("httr")
+# Parameters
+hdfsUri <- "https://10.0.2.15:50470"
+fileUri <- "/home/data/video-likes.zip"
+readParameter <- "?op=OPEN"
+optionnalParameters <- ""
+uri <- paste0(hdfsUri, fileUri, readParameter, optionnalParameters)
+data <- read.delim(uri)
+```
 
-###
+```{r}
+cl <- makeCluster(detectCores() - 1)
+json_like_files<-list.files(path =paste0(root_path,"Files/video-likes"),pattern="*.json",full.names = TRUE)
+json_like_list<-parLapply(cl,json_like_files,function(x) rjson::fromJSON(file=x,method = "R"))
+stopCluster(cl)
+# Change to iterate the json_like_files
+filename <- basename(json_like_files[1])
 
-# Duplicated analysis: 750 repeated ids
-length(definitive_ids[duplicated(definitive_ids$V1),])
+#Code here to add elements to the list
+```
 
+## Annex: Save the files in a permanent data in order to be easily accessible
+```{r}
 #To almost mimic the functionality of store or stores in R, you can do the following. Use save(x,y,z,file="Permdata") to save permanent objects in "permdata". When you exit R, do not save the workspace. Then all temporary objects will disappear. In your .Rprofile put the command load("Permdata") so that the next time you invoke R the permanent objects will be available.
 save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, file="Permanentdata")
 # Load the saved data
 load("Permanentdata")
+```

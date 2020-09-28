@@ -1,0 +1,10 @@
+---
+title: "R Notebook"
+author: daniel
+date: 28/09/2020
+output: html_notebook
+---
+
+# Identification of Outliers
+```{r}
+```
