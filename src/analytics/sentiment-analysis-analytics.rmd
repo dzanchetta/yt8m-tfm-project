@@ -7,4 +7,46 @@ output: html_notebook
 
 # Identification of Outliers
 ```{r}
+root_path <- "/Users/daniel/LocalFiles for TFM/youtubeProjectTFM/src"
+setwd(root_path)
+filePath <- paste0(root_path,"/sentiment_analysis.csv")
+sentAnalysis <- read.csv(filePath,sep=",",header = T)
+
+summary(sentAnalysis)
+```
+```{r}
+boxplot(sentAnalysis$negative_comments,sentAnalysis$neutral_comments,sentAnalysis$positive_comments, names = c("Negative","Neutral","Positive"),las = 2, col = c("royalblue","lightgreen","orange"))
+mtext("Comment Sentiment", side = 1, line = 4)
+mtext("Number of Comments", side = 2, line = 3)
+```
+```{r}
+#Positive comments
+Q1 <- summary(sentAnalysis$positive_comments)[2]
+Q3 <- summary(sentAnalysis$positive_comments)[5]
+IQR_POS_COM <- Q3 - Q1
+IQR_POS_COM
+
+#Negative comments
+Q1 <- summary(sentAnalysis$neutral_comments)[2]
+Q3 <- summary(sentAnalysis$neutral_comments)[5]
+IQR_NEU_COM <- Q3 - Q1
+IQR_NEU_COM
+
+#Neutral comments
+Q1 <- summary(sentAnalysis$negative_comments)[2]
+Q3 <- summary(sentAnalysis$negative_comments)[5]
+IQR_NEG_COM <- Q3 - Q1
+IQR_NEG_COM
+```
+```{r}
+#Detecting outliers
+outliers_pos <- boxplot.stats(sentAnalysis$positive_comments)$out
+outliers_neg <- boxplot.stats(sentAnalysis$negative_comments)$out
+outliers_neu <- boxplot.stats(sentAnalysis$neutral_comments)$out
+
+cat("Potential outliers for positive comments: ",length(outliers_pos))
+cat("\n")
+cat("Potential outliers for negative comments: ", length(outliers_neg))
+cat("\n")
+cat("Potential outliers for neutral comments: ", length(outliers_neu))
 ```

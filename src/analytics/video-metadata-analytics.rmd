@@ -11,6 +11,8 @@ library("readtext")
 library("jsonlite")
 library("rjson")
 library("parallel")
+library("ggplot2")
+library("reshape2")
 
 # This is a temporary solution to read the files from local repository
 # Later they should be read from HDFS
@@ -270,7 +272,7 @@ sum(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(c
 ```
 
 ```{r}
-# DISCLAIMER: Not working to open direct from HDFS.
+# DISCLAIMER: We've tried but it is not working to open direct from HDFS.
 library("httr")
 # Parameters
 hdfsUri <- "https://10.0.2.15:50470"
@@ -281,15 +283,135 @@ uri <- paste0(hdfsUri, fileUri, readParameter, optionnalParameters)
 data <- read.delim(uri)
 ```
 
+# Analysis on the Video Ids that we obtained Transcripts but we didn't obtain Metadata
+
 ```{r}
 cl <- makeCluster(detectCores() - 1)
 json_like_files<-list.files(path =paste0(root_path,"Files/video-likes"),pattern="*.json",full.names = TRUE)
 json_like_list<-parLapply(cl,json_like_files,function(x) rjson::fromJSON(file=x,method = "R"))
 stopCluster(cl)
-# Change to iterate the json_like_files
-filename <- basename(json_like_files[1])
+#Code to add the id to the list
+N <- length(json_like_files)
+for (i in 1:N){
+  print(i)
+  filename <- basename(json_like_files[i]) %>% gsub(pattern = ".json",replacement = "",.)
+  names(json_like_list[[i]])[length(json_like_list[[i]])] <- "video_id"
+  json_like_list[[i]]$video_id <- filename
+}
 
-#Code here to add elements to the list
+#Transform list into dataframe to be easier to plot
+library(dplyr)
+
+dataframeLikes <- bind_rows(lapply(json_like_list, as.data.frame.list))
+dataframeLikes$viewCount <- as.numeric(dataframeLikes$viewCount)
+dataframeLikes$likeCount <- as.numeric(dataframeLikes$likeCount)
+dataframeLikes$dislikeCount <- as.numeric(dataframeLikes$dislikeCount)
+
+#Summary
+summary(dataframeLikes)
+
+#Boxplot - it does not look good
+op<-par(mfrow=c(1,2))
+
+boxplot(dataframeLikes$viewCount, names = "View Count",las = 2, col = "royalblue")
+mtext("Count", side = 2, line = 3)
+
+boxplot(dataframeLikes$likeCount, names = "Like Count",las = 2, col = "royalblue")
+mtext("Count", side = 2, line = 3)
+
+boxplot(dataframeLikes$dislikeCount, names = "Dislike Count",las = 2, col = "royalblue")
+mtext("Count", side = 2, line = 3)
+
+par(op)
+
+# Check the ids in the transcript files that are not present in the video metadata
+transcript_files<-list.files(path =paste0(root_path,"Files/ALL_Transcripts"),pattern="*.txt",full.names = TRUE)
+#Get the video ids that have transcript
+for (i in 1:length((transcript_files))){
+  filename <- basename(transcript_files[i]) %>% gsub(pattern = ".en.txt",replacement = "",.)
+  transcript_video_ids <- rbind(transcript_video_ids,filename)
+}
+
+#Get video ids that have video metadata
+for (i in 1:length((json_files))){
+  filename <- basename(json_files[i]) %>% gsub(pattern = ".info.json",replacement = "",.)
+  json_video_ids <- rbind(json_video_ids,filename)
+}
+
+#Get the valuesin transcript_video_ids but not in json_video_ids
+diff_lists<-setdiff(transcript_video_ids,json_video_ids)
+diff_lists <- as.data.frame(diff_lists)
+
+diff_lists$inbeautyfitness<- ifelse(diff_lists$diff_lists %in% beauty_fitness$V1,"Yes", "No")
+new_beauty_fitness <- diff_lists %>% filter(inbeautyfitness == "Yes")
+
+diff_lists$inbooksliterature<- ifelse(diff_lists$diff_lists %in% books_literature$V1,"Yes", "No")
+new_books_literature <- diff_lists %>% filter(inbooksliterature == "Yes")
+
+diff_lists$inbusinessindustrial<- ifelse(diff_lists$diff_lists %in% business_industrial$V1,"Yes", "No")
+new_business_industrial <- diff_lists %>% filter(inbusinessindustrial == "Yes")
+
+diff_lists$incomputer<- ifelse(diff_lists$diff_lists %in% computers_electronics$V1,"Yes", "No")
+new_computers_electronics <- diff_lists %>% filter(incomputer == "Yes")
+
+diff_lists$infooddrink<- ifelse(diff_lists$diff_lists %in% food_drink$V1,"Yes", "No")
+new_food_drink <- diff_lists %>% filter(infooddrink == "Yes")
+
+diff_lists_balance<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
+colnames(diff_lists_balance) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
+
+library('data.table')
+dat.m <- melt(as.data.table(diff_lists_balance, keep.rownames = "Vars"), id.vars = "Vars")
+
+ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
+  labs(x='YouTube-8M defined category name', y="number of video ids", title='Video IDs with Transcript but without Metadata (per Category)') +
+  coord_flip()
+
+#Code to check whether there were videos that we didn't manage to get the like and dislike counts
+#video_likes <- read.delim(paste0(root_path,"Files/video-likes/video-likes.txt"),header=FALSE,sep=" ",dec=" ")
+#definitive_ids$invideolikes <- ifelse(definitive_ids$V1 %in% video_likes$V1,"Yes", "No")
+#new_video_likes <- definitive_ids %>% filter(invideolikes == "No")
+#write.table(new_video_likes$V1,file = "video-likes-diff.txt", sep = " ", row.names = FALSE, col.names = FALSE)
+```
+```{r}
+df_videos_without_metadata <- dataframeLikes[dataframeLikes$video_id %in% diff_lists$diff_lists,]
+summary(df_videos_without_metadata)
+```
+# Analysis on the Video Ids that we obtained Transcripts but we didn't obtain Sentiment Analysis calculation
+```{r}
+sentAnalysis <- read.csv(paste0(root_path,"youtubeProjectTFM/src/sentiment_analysis.csv"),sep=",",header = T)
+diff_lists_t_sa<-setdiff(transcript_video_ids,sentAnalysis$video_id)
+diff_lists_t_sa <- as.data.frame(diff_lists_t_sa)
+
+diff_lists_t_sa$inbeautyfitness<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% beauty_fitness$V1,"Yes", "No")
+new_beauty_fitness <- diff_lists_t_sa %>% filter(inbeautyfitness == "Yes")
+
+diff_lists_t_sa$inbooksliterature<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% books_literature$V1,"Yes", "No")
+new_books_literature <- diff_lists_t_sa %>% filter(inbooksliterature == "Yes")
+
+diff_lists_t_sa$inbusinessindustrial<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% business_industrial$V1,"Yes", "No")
+new_business_industrial <- diff_lists_t_sa %>% filter(inbusinessindustrial == "Yes")
+
+diff_lists_t_sa$incomputer<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% computers_electronics$V1,"Yes", "No")
+new_computers_electronics <- diff_lists_t_sa %>% filter(incomputer == "Yes")
+
+diff_lists_t_sa$infooddrink<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% food_drink$V1,"Yes", "No")
+new_food_drink <- diff_lists_t_sa %>% filter(infooddrink == "Yes")
+
+diff_lists_balance_t_sa<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
+colnames(diff_lists_balance_t_sa) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
+
+library('data.table')
+dat.m <- melt(as.data.table(diff_lists_balance_t_sa, keep.rownames = "Vars"), id.vars = "Vars")
+
+ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
+  labs(x='YouTube-8M defined category name', y="number of video ids", title='Video IDs with Transcript but without Sentiment Analysis (per Category)') +
+  coord_flip()
+```
+
+```{r}
+df_videos_without_sentAnalysis <- dataframeLikes[dataframeLikes$video_id %in% diff_lists_t_sa$diff_lists_t_sa,]
+summary(df_videos_without_sentAnalysis)
 ```
 
 ## Annex: Save the files in a permanent data in order to be easily accessible
