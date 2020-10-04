@@ -7,13 +7,41 @@ output: html_notebook
 
 # Identification of Outliers
 ```{r}
-root_path <- "/Users/daniel/LocalFiles for TFM/youtubeProjectTFM/src"
+root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
-filePath <- paste0(root_path,"/sentiment_analysis.csv")
+filePath <- paste0(root_path,"youtubeProjectTFM/src/sentiment_analysis.csv")
 sentAnalysis <- read.csv(filePath,sep=",",header = T)
 
 summary(sentAnalysis)
 ```
+```{r}
+beauty_fitness <- read.delim(paste0(root_path,"Files/Beauty_Fitness.txt"),header=FALSE,sep=" ",dec=" ")
+books_literature <- read.delim(paste0(root_path,"Files/Books_Literature.txt"),header=FALSE,sep=" ",dec=" ")
+business_industrial <- read.delim(paste0(root_path,"Files/Business_Industrial.txt"),header=FALSE,sep=" ",dec=" ")
+computers_electronics <- read.delim(paste0(root_path,"Files/Computers_Electronics.txt"),header=FALSE,sep=" ",dec=" ")
+food_drink <- read.delim(paste0(root_path,"Files/Food_Drink.txt"),header=FALSE,sep=" ",dec=" ")
+```
+
+```{r}
+library(dplyr)
+sentAnalysis <- sentAnalysis %>% mutate(category=ifelse(video_id %in% beauty_fitness$V1,paste("Beauty and Fitness"),category)) %>%
+    mutate(category=ifelse(video_id %in% books_literature$V1,paste("Books and Literature"),category)) %>%
+    mutate(category=ifelse(video_id %in% business_industrial$V1,paste("Business and Industrial"),category)) %>%
+    mutate(category=ifelse(video_id %in% computers_electronics$V1,paste("Computers and Electronics"),category)) %>%
+    mutate(category=ifelse(video_id %in% food_drink$V1,paste("Food and Drink"),category)) %>%
+  filter(category != "NA")
+
+nrow(sentAnalysis[sentAnalysis$category=="NA",])
+nrow(sentAnalysis[sentAnalysis$category=="Beauty and Fitness",])
+nrow(sentAnalysis[sentAnalysis$category=="Books and Literature",])
+nrow(sentAnalysis[sentAnalysis$category=="Business and Industrial",])
+nrow(sentAnalysis[sentAnalysis$category=="Computers and Electronics",])
+nrow(sentAnalysis[sentAnalysis$category=="Food and Drink",])
+
+write.csv(sentAnalysis,"sentiment-analysis-analytics.csv",row.names = FALSE)
+```
+
+# Boxplot
 ```{r}
 boxplot(sentAnalysis$negative_comments,sentAnalysis$neutral_comments,sentAnalysis$positive_comments, names = c("Negative","Neutral","Positive"),las = 2, col = c("royalblue","lightgreen","orange"))
 mtext("Comment Sentiment", side = 1, line = 4)
@@ -39,7 +67,7 @@ IQR_NEG_COM <- Q3 - Q1
 IQR_NEG_COM
 ```
 ```{r}
-#Detecting outliers
+#Detecting potential outliers
 outliers_pos <- boxplot.stats(sentAnalysis$positive_comments)$out
 outliers_neg <- boxplot.stats(sentAnalysis$negative_comments)$out
 outliers_neu <- boxplot.stats(sentAnalysis$neutral_comments)$out
