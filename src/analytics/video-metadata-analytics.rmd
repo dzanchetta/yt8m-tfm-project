@@ -6,6 +6,7 @@ output: html_notebook
 # Analytics of the Video Metadata datasets
 **Obs**: All the analysis performed throughout this R markdown is better explained in the written document. There it is detailed the motivations and reasoning for each process.
 
+## Import procedure
 ```{r}
 library("readtext")
 library("jsonlite")
@@ -13,13 +14,29 @@ library("rjson")
 library("parallel")
 library("ggplot2")
 library("reshape2")
+library("dplyr")
+library("tidyr")
+library("cld3")
+library("textcat")
+library("httr")
+library('data.table')
+library("purrr")
+library("rlist")
+library("FactoMineR")
+library("mice")
+library("naniar")
+library("PCAmixdata")
 
+root_path <- "/Users/daniel/LocalFiles for TFM/"
+setwd(root_path)
+
+```
+
+```{r}
 # This is a temporary solution to read the files from local repository
 # Later they should be read from HDFS
 # File location: https://drive.google.com/file/d/1ERz6um0Wy2Qzjh76AlHZ70dt1Dc26JZJ/view?usp=sharing
 # Download and save in local machine. Replace the root_path directory.
-root_path <- "/Users/daniel/LocalFiles for TFM/"
-setwd(root_path)
 
 #Reading the files using parallel (takes on average 1h30min to finish)
 cl <- makeCluster(detectCores() - 1)
@@ -38,9 +55,6 @@ lengths(json_list)
 
 # Calculating **Missing Values** for the main elements in video metadata
 ```{r}
-library("dplyr")
-library("tidyr")
-
 #Function works only for list type variables
 function_is_null <- function(x, var = " "){
   len <- length(x)
@@ -75,9 +89,6 @@ df <- data.frame(null_dislike_count,null_like_count,null_id_count_count,null_cha
 colnames(df) <- col_names
 
 # Plotting the results
-library("ggplot2")
-library("reshape2")
-
 cd274 <- melt(df[, 1:ncol(df)])
 ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
   labs(x='variable', y="number of missing values", title='Missing Values Analysis Main Variables') +
@@ -88,8 +99,6 @@ ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
 
 ## Test CLD3 package
 ```{r}
-library("cld3")
-
 #Function works only for list type variables
 fun_transf_df_language_detection_cld3 <- function(x,var1 = " ",var2=" "){
   len <- length(x)
@@ -117,7 +126,6 @@ summary_cld3 <- df_language_fulltitle %>%
 
 ## Test Texcat package
 ```{r}
-library("textcat")
 fun_transf_df_language_detection_textcat <- function(x,var1 = " ",var2=" "){
   len <- length(x)
   for(i in 1:len){
@@ -273,7 +281,6 @@ sum(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(c
 
 ```{r}
 # DISCLAIMER: We've tried but it is not working to open direct from HDFS.
-library("httr")
 # Parameters
 hdfsUri <- "https://10.0.2.15:50470"
 fileUri <- "/home/data/video-likes.zip"
@@ -300,8 +307,6 @@ for (i in 1:N){
 }
 
 #Transform list into dataframe to be easier to plot
-library(dplyr)
-
 dataframeLikes <- bind_rows(lapply(json_like_list, as.data.frame.list))
 dataframeLikes$viewCount <- as.numeric(dataframeLikes$viewCount)
 dataframeLikes$likeCount <- as.numeric(dataframeLikes$likeCount)
@@ -360,7 +365,6 @@ new_food_drink <- diff_lists %>% filter(infooddrink == "Yes")
 diff_lists_balance<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
 colnames(diff_lists_balance) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
 
-library('data.table')
 dat.m <- melt(as.data.table(diff_lists_balance, keep.rownames = "Vars"), id.vars = "Vars")
 
 ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
@@ -373,6 +377,19 @@ ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
 #new_video_likes <- definitive_ids %>% filter(invideolikes == "No")
 #write.table(new_video_likes$V1,file = "video-likes-diff.txt", sep = " ", row.names = FALSE, col.names = FALSE)
 ```
+## Analyse if the issue with missing values in like and dislike has worked out
+```{r}
+col_names <- c("Dislike Count","Like Count")
+df_fixed_likes <- data.frame(nrow(dataframeLikes[is.na(dataframeLikes$dislikeCount),]),nrow(dataframeLikes[is.na(dataframeLikes$likeCount),]))
+colnames(df_fixed_likes) <- col_names
+
+# Plotting the results
+cd274 <- melt(as.data.table(df_fixed_likes, keep.rownames = "Vars"), id.vars = "Vars")
+ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
+  labs(x='variable', y="number of missing values", title='Count of Missing Values for Like and Dislike Count') +
+  coord_flip() + geom_text(aes(label=value))
+```
+
 ```{r}
 df_videos_without_metadata <- dataframeLikes[dataframeLikes$video_id %in% diff_lists$diff_lists,]
 summary(df_videos_without_metadata)
@@ -401,7 +418,6 @@ new_food_drink <- diff_lists_t_sa %>% filter(infooddrink == "Yes")
 diff_lists_balance_t_sa<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
 colnames(diff_lists_balance_t_sa) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
 
-library('data.table')
 dat.m <- melt(as.data.table(diff_lists_balance_t_sa, keep.rownames = "Vars"), id.vars = "Vars")
 
 ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
@@ -414,10 +430,514 @@ df_videos_without_sentAnalysis <- dataframeLikes[dataframeLikes$video_id %in% di
 summary(df_videos_without_sentAnalysis)
 ```
 
-## Annex: Save the files in a permanent data in order to be easily accessible
+# PCA
+It has been tested the PCA for the raw video data alongside sentiment analysis dataframe. To do so, a single dataframe has been built.
+```{r}
+#Function used to sort the elements inside the list
+fun_sort <- function(file){
+  for(i in 1:length(file)){
+    file[[i]] <- file[[i]][sort(names(file[[i]]))]
+  }
+  return(file)
+}
+
+#Library to find out whether there are unique elements in the list. It returned FALSE, which means that the lists have no homogeneity
+sorted_json_list2 <- fun_sort(json_list)
+sorted_json_list2 %>%
+  map(names) %>%
+  unique() %>%
+  length() == 1
+
+# So we need to make the list homogenous, and to do so we found out that the stretched_ratio is one field that is present only in a few lists. So, we remove it.
+fun_remove_elements <- function(file,var){
+  for(i in 1:length(file)){
+    file[[i]] <- list.remove(file[[i]],var)
+  }
+  return(file)
+}
+sorted_json_list3 <- fun_remove_elements(sorted_json_list2,'stretched_ratio')
+
+#Now it returned TRUE, so it is homogenous
+sorted_json_list3 %>%
+  map(names) %>%
+  unique() %>%
+  length() == 1
+
+#However, the functions to transform to dataframe was not working because of difference in the values of each variables.
+#So we had to convert the null values and convert all variables to character
+convertNullToZero <- function(x){
+  len <- length(x)
+  for(i in 1:len){
+    if (is.null(x[[i]][["_filename"]])){
+      x[[i]][["_filename"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["abr"]])){
+      x[[i]][["abr"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["acodec"]])){
+      x[[i]][["acodec"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["age_limit"]])){
+      x[[i]][["age_limit"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["album"]])){
+      x[[i]][["album"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["alt_title"]])){
+      x[[i]][["alt_title"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["annotations"]])){
+      x[[i]][["annotations"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["artist"]])){
+      x[[i]][["artist"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["asr"]])){
+      x[[i]][["asr"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["automatic_captions"]])){
+      x[[i]][["automatic_captions"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["average_rating"]])){
+      x[[i]][["average_rating"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["categories"]])){
+      x[[i]][["categories"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["channel_id"]])){
+      x[[i]][["channel_id"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["channel_url"]])){
+      x[[i]][["channel_url"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["chapters"]])){
+      x[[i]][["chapters"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["creator"]])){
+      x[[i]][["creator"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["description"]])){
+      x[[i]][["description"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["dislike_count"]])){
+      x[[i]][["dislike_count"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["display_id"]])){
+      x[[i]][["display_id"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["duration"]])){
+      x[[i]][["duration"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["end_time"]])){
+      x[[i]][["end_time"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["episode_number"]])){
+      x[[i]][["episode_number"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["ext"]])){
+      x[[i]][["ext"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["extractor"]])){
+      x[[i]][["extractor"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["extractor_key"]])){
+      x[[i]][["extractor_key"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["filesize"]])){
+      x[[i]][["filesize"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["format"]])){
+      x[[i]][["format"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["format_id"]])){
+      x[[i]][["format_id"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["format_note"]])){
+      x[[i]][["format_note"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["formats"]])){
+      x[[i]][["formats"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["fps"]])){
+      x[[i]][["fps"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["fulltitle"]])){
+      x[[i]][["fulltitle"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["height"]])){
+      x[[i]][["height"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["http_headers"]])){
+      x[[i]][["http_headers"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["id"]])){
+      x[[i]][["id"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["is_live"]])){
+      x[[i]][["is_live"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["license"]])){
+      x[[i]][["license"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["like_count"]])){
+      x[[i]][["like_count"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["player_url"]])){
+      x[[i]][["player_url"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["playlist"]])){
+      x[[i]][["playlist"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["playlist_index"]])){
+      x[[i]][["playlist_index"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["protocol"]])){
+      x[[i]][["protocol"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["release_date"]])){
+      x[[i]][["release_date"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["release_year"]])){
+      x[[i]][["release_year"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["season_number"]])){
+      x[[i]][["season_number"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["series"]])){
+      x[[i]][["series"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["start_time"]])){
+      x[[i]][["start_time"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["subtitles"]])){
+      x[[i]][["subtitles"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["tags"]])){
+      x[[i]][["tags"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["tbr"]])){
+      x[[i]][["tbr"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["thumbnail"]])){
+      x[[i]][["thumbnail"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["thumbnails"]])){
+      x[[i]][["thumbnails"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["title"]])){
+      x[[i]][["title"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["track"]])){
+      x[[i]][["track"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["upload_date"]])){
+      x[[i]][["upload_date"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["uploader"]])){
+      x[[i]][["uploader"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["uploader_id"]])){
+      x[[i]][["uploader_id"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["uploader_url"]])){
+      x[[i]][["uploader_url"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["url"]])){
+      x[[i]][["url"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["vcodec"]])){
+      x[[i]][["vcodec"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["view_count"]])){
+      x[[i]][["view_count"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["webpage_url"]])){
+      x[[i]][["webpage_url"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["webpage_url_basename"]])){
+      x[[i]][["webpage_url_basename"]] <- NA_character_
+    }
+    if (is.null(x[[i]][["width"]])){
+      x[[i]][["width"]] <- NA_character_
+    }
+  }
+  return(x)
+}
+
+convertVariablesToCharacter <- function(x){
+  len <- length(x)
+  for(i in 1:len){
+    if (!is.character(x[[i]][["_filename"]])){
+      x[[i]][["_filename"]] <- as.character(x[[i]][["_filename"]])
+    }
+    if (!is.character(x[[i]][["abr"]])){
+      x[[i]][["abr"]] <- as.character(x[[i]][["abr"]])
+    }
+    if (!is.character(x[[i]][["acodec"]])){
+      x[[i]][["acodec"]] <- as.character(x[[i]][["acodec"]])
+    }
+    if (!is.character(x[[i]][["age_limit"]])){
+      x[[i]][["age_limit"]] <- as.character(x[[i]][["age_limit"]])
+    }
+    if (!is.character(x[[i]][["album"]])){
+      x[[i]][["album"]] <- as.character(x[[i]][["album"]])
+    }
+    if (!is.character(x[[i]][["alt_title"]])){
+      x[[i]][["alt_title"]] <- as.character(x[[i]][["alt_title"]])
+    }
+    if (!is.character(x[[i]][["annotations"]])){
+      x[[i]][["annotations"]] <- as.character(x[[i]][["annotations"]])
+    }
+    if (!is.character(x[[i]][["artist"]])){
+      x[[i]][["artist"]] <- as.character(x[[i]][["artist"]])
+    }
+    if (!is.character(x[[i]][["asr"]])){
+      x[[i]][["asr"]] <- as.character(x[[i]][["asr"]])
+    }
+    if (!is.character(x[[i]][["automatic_captions"]])){
+      x[[i]][["automatic_captions"]] <- as.character(x[[i]][["automatic_captions"]])
+    }
+    if (!is.character(x[[i]][["average_rating"]])){
+      x[[i]][["average_rating"]] <- as.character(x[[i]][["average_rating"]])
+    }
+    if (!is.character(x[[i]][["categories"]])){
+      x[[i]][["categories"]] <- as.character(x[[i]][["categories"]])
+    }
+    if (!is.character(x[[i]][["channel_id"]])){
+      x[[i]][["channel_id"]] <- as.character(x[[i]][["channel_id"]])
+    }
+    if (!is.character(x[[i]][["channel_url"]])){
+      x[[i]][["channel_url"]] <- as.character(x[[i]][["channel_url"]])
+    }
+    if (!is.character(x[[i]][["chapters"]])){
+      x[[i]][["chapters"]] <- as.character(x[[i]][["chapters"]])
+    }
+    if (!is.character(x[[i]][["creator"]])){
+      x[[i]][["creator"]] <- as.character(x[[i]][["creator"]])
+    }
+    if (!is.character(x[[i]][["description"]])){
+      x[[i]][["description"]] <- as.character(x[[i]][["description"]])
+    }
+    if (!is.character(x[[i]][["dislike_count"]])){
+      x[[i]][["dislike_count"]] <- as.character(x[[i]][["dislike_count"]])
+    }
+    if (!is.character(x[[i]][["display_id"]])){
+      x[[i]][["display_id"]] <- as.character(x[[i]][["display_id"]])
+    }
+    if (!is.character(x[[i]][["duration"]])){
+      x[[i]][["duration"]] <- as.character(x[[i]][["duration"]])
+    }
+    if (!is.character(x[[i]][["end_time"]])){
+      x[[i]][["end_time"]] <- as.character(x[[i]][["end_time"]])
+    }
+    if (!is.character(x[[i]][["episode_number"]])){
+      x[[i]][["episode_number"]] <- as.character(x[[i]][["episode_number"]])
+    }
+    if (!is.character(x[[i]][["ext"]])){
+      x[[i]][["ext"]] <- as.character(x[[i]][["ext"]])
+    }
+    if (!is.character(x[[i]][["extractor"]])){
+      x[[i]][["extractor"]] <- as.character(x[[i]][["extractor"]])
+    }
+    if (!is.character(x[[i]][["extractor_key"]])){
+      x[[i]][["extractor_key"]] <- as.character(x[[i]][["extractor_key"]])
+    }
+    if (!is.character(x[[i]][["filesize"]])){
+      x[[i]][["filesize"]] <- as.character(x[[i]][["filesize"]])
+    }
+    if (!is.character(x[[i]][["format"]])){
+      x[[i]][["format"]] <- as.character(x[[i]][["format"]])
+    }
+    if (!is.character(x[[i]][["format_id"]])){
+      x[[i]][["format_id"]] <- as.character(x[[i]][["format_id"]])
+    }
+    if (!is.character(x[[i]][["format_note"]])){
+      x[[i]][["format_note"]] <- as.character(x[[i]][["format_note"]])
+    }
+    if (!is.character(x[[i]][["fps"]])){
+      x[[i]][["fps"]] <- as.character(x[[i]][["fps"]])
+    }
+    if (!is.character(x[[i]][["fulltitle"]])){
+      x[[i]][["fulltitle"]] <- as.character(x[[i]][["fulltitle"]])
+    }
+    if (!is.character(x[[i]][["height"]])){
+      x[[i]][["height"]] <- as.character(x[[i]][["height"]])
+    }
+    if (!is.character(x[[i]][["id"]])){
+      x[[i]][["id"]] <- as.character(x[[i]][["id"]])
+    }
+    if (!is.character(x[[i]][["is_live"]])){
+      x[[i]][["is_live"]] <- as.character(x[[i]][["is_live"]])
+    }
+    if (!is.character(x[[i]][["license"]])){
+      x[[i]][["license"]] <- as.character(x[[i]][["license"]])
+    }
+    if (!is.character(x[[i]][["like_count"]])){
+      x[[i]][["like_count"]] <- as.character(x[[i]][["like_count"]])
+    }
+    if (!is.character(x[[i]][["player_url"]])){
+      x[[i]][["player_url"]] <- as.character(x[[i]][["player_url"]])
+    }
+    if (!is.character(x[[i]][["playlist"]])){
+      x[[i]][["playlist"]] <- as.character(x[[i]][["playlist"]])
+    }
+    if (!is.character(x[[i]][["playlist_index"]])){
+      x[[i]][["playlist_index"]] <- as.character(x[[i]][["playlist_index"]])
+    }
+    if (!is.character(x[[i]][["protocol"]])){
+      x[[i]][["protocol"]] <- as.character(x[[i]][["protocol"]])
+    }
+    if (!is.character(x[[i]][["release_date"]])){
+      x[[i]][["release_date"]] <- as.character(x[[i]][["release_date"]])
+    }
+    if (!is.character(x[[i]][["release_year"]])){
+      x[[i]][["release_year"]] <- as.character(x[[i]][["release_year"]])
+    }
+    if (!is.character(x[[i]][["season_number"]])){
+      x[[i]][["season_number"]] <- as.character(x[[i]][["season_number"]])
+    }
+    if (!is.character(x[[i]][["series"]])){
+      x[[i]][["series"]] <- as.character(x[[i]][["series"]])
+    }
+    if (!is.character(x[[i]][["start_time"]])){
+      x[[i]][["start_time"]] <- as.character(x[[i]][["start_time"]])
+    }
+    if (!is.character(x[[i]][["subtitles"]])){
+      x[[i]][["subtitles"]] <- as.character(x[[i]][["subtitles"]])
+    }
+    if (!is.character(x[[i]][["tbr"]])){
+      x[[i]][["tbr"]] <- as.character(x[[i]][["tbr"]])
+    }
+    if (!is.character(x[[i]][["thumbnail"]])){
+      x[[i]][["thumbnail"]] <- as.character(x[[i]][["thumbnail"]])
+    }
+    if (!is.character(x[[i]][["title"]])){
+      x[[i]][["title"]] <- as.character(x[[i]][["title"]])
+    }
+    if (!is.character(x[[i]][["track"]])){
+      x[[i]][["track"]] <- as.character(x[[i]][["track"]])
+    }
+    if (!is.character(x[[i]][["upload_date"]])){
+      x[[i]][["upload_date"]] <- as.character(x[[i]][["upload_date"]])
+    }
+    if (!is.character(x[[i]][["uploader"]])){
+      x[[i]][["uploader"]] <- as.character(x[[i]][["uploader"]])
+    }
+    if (!is.character(x[[i]][["uploader_id"]])){
+      x[[i]][["uploader_id"]] <- as.character(x[[i]][["uploader_id"]])
+    }
+    if (!is.character(x[[i]][["uploader_url"]])){
+      x[[i]][["uploader_url"]] <- as.character(x[[i]][["uploader_url"]])
+    }
+    if (!is.character(x[[i]][["url"]])){
+      x[[i]][["url"]] <- as.character(x[[i]][["url"]])
+    }
+    if (!is.character(x[[i]][["vcodec"]])){
+      x[[i]][["vcodec"]] <- as.character(x[[i]][["vcodec"]])
+    }
+    if (!is.character(x[[i]][["view_count"]])){
+      x[[i]][["view_count"]] <- as.character(x[[i]][["view_count"]])
+    }
+    if (!is.character(x[[i]][["webpage_url"]])){
+      x[[i]][["webpage_url"]] <- as.character(x[[i]][["webpage_url"]])
+    }
+    if (!is.character(x[[i]][["webpage_url_basename"]])){
+      x[[i]][["webpage_url_basename"]] <- as.character(x[[i]][["webpage_url_basename"]])
+    }
+    if (!is.character(x[[i]][["width"]])){
+      x[[i]][["width"]] <- as.character(x[[i]][["width"]])
+    }
+  }
+  return(x)
+}
+
+sorted_json_list3 <- convertNullToZero(sorted_json_list3)
+sorted_json_list3 <- fun_remove_elements(sorted_json_list3,'formats')
+sorted_json_list3 <- fun_remove_elements(sorted_json_list3,'http_headers')
+sorted_json_list3 <- fun_remove_elements(sorted_json_list3,'tags')
+sorted_json_list3 <- fun_remove_elements(sorted_json_list3,'thumbnails')
+sorted_json_list3 <- convertVariablesToCharacter(sorted_json_list3)
+#Now it worked \o/
+df_json_metadata <- sorted_json_list3 %>% map_df(flatten_df)
+
+df_json_metadata_enrich <- df_json_metadata %>% mutate(like_count=ifelse(id %in% dataframeLikes$video_id,paste(dataframeLikes$likeCount),like_count)) %>%
+mutate(dislike_count=ifelse(id %in% dataframeLikes$video_id,paste(dataframeLikes$dislikeCount),dislike_count)) %>%
+mutate(view_count=ifelse(id %in% dataframeLikes$video_id,paste(dataframeLikes$viewCount),view_count)) %>%
+mutate(positive_comment=ifelse(id %in% sentAnalysis$video_id,paste(sentAnalysis$positive_comments),NA_character_)) %>%
+mutate(neutral_comment=ifelse(id %in% sentAnalysis$video_id,paste(sentAnalysis$neutral_comments),NA_character_)) %>%
+mutate(negative_comment=ifelse(id %in% sentAnalysis$video_id,paste(sentAnalysis$negative_comments),NA_character_))
+
+#Rename the column "_filename" by "filename"
+colnames(df_json_metadata_enrich)[1] <- "filename"
+
+summary(df_json_metadata_enrich)
+#Plot with missing values from raw data - all the sample
+gg_miss_var(df_json_metadata_enrich)
+```
+## Handling Missing Values and executing PCA
+```{r}
+#The first variables have all observations with missing values, so we remove them because they do not add value for the analysis
+df_json_metadata_enrich <- select(df_json_metadata_enrich,-c(track,start_time,series,season_number,release_year,release_date,playlist_index,playlist,license,is_live,episode_number,end_time,creator,chapters,artist,annotations,alt_title,album,player_url,filesize))
+
+#We turn the variables that were originally numeric back again into numeric
+df_json_metadata_enrich$positive_comment <- as.numeric(df_json_metadata_enrich$positive_comment)
+df_json_metadata_enrich$neutral_comment <- as.numeric(df_json_metadata_enrich$neutral_comment)
+df_json_metadata_enrich$negative_comment <- as.numeric(df_json_metadata_enrich$negative_comment)
+df_json_metadata_enrich$average_rating <- as.numeric(df_json_metadata_enrich$average_rating)
+df_json_metadata_enrich$dislike_count <- as.numeric(df_json_metadata_enrich$dislike_count)
+df_json_metadata_enrich$like_count <- as.numeric(df_json_metadata_enrich$like_count)
+df_json_metadata_enrich$duration <- as.numeric(df_json_metadata_enrich$duration)
+df_json_metadata_enrich$format_id <- as.numeric(df_json_metadata_enrich$format_id)
+df_json_metadata_enrich$fps <- as.numeric(df_json_metadata_enrich$fps)
+df_json_metadata_enrich$height <- as.numeric(df_json_metadata_enrich$height)
+df_json_metadata_enrich$view_count <- as.numeric(df_json_metadata_enrich$view_count)
+df_json_metadata_enrich$width <- as.numeric(df_json_metadata_enrich$width)
+
+#Keep only the complete cases, removing all rows with at least one NA
+df_json_metadata_enrich <- df_json_metadata_enrich[complete.cases(df_json_metadata_enrich),]
+#57517 observations
+
+summary(df_json_metadata_enrich)
+```
+
+## Finally, executing PCA
+```{r}
+set.seed(777)
+#Sampling the dataset in order to try and be capable of executing the pca (2% of the dataset, approx 1150 random records)
+pca_sample <- sample(seq_len(nrow(df_json_metadata_enrich)),size = nrow(df_json_metadata_enrich)*0.02)
+df_json_metadata_enrich_sample <- df_json_metadata_enrich[pca_sample,]
+
+#Attempt with PCAmix, used for mixed data
+#https://cran.r-project.org/web/packages/PCAmixdata/vignettes/PCAmixdata.html
+split <- splitmix(df_json_metadata_enrich_sample)
+X1 <- split$X.quanti
+X2 <- split$X.quali
+# Some of the columns have identical values, which was causing the error "There are columns in X.quali where all the categories are identical". So we decided to remove the columns from the analysis.
+X2 <- select(X2, -c(acodec,age_limit,asr,ext,extractor,extractor_key,protocol))
+
+res.pcamix <- PCAmix(X.quanti=X1, X.quali=X2,rename.level=TRUE,graph=FALSE)
+
+res.pcamix$eig
+par(mfrow=c(2,2))
+plot(res.pcamix,choice="ind",label=FALSE, posleg="bottomright", main="Observations")
+plot(res.pcamix,choice="levels",xlim=c(-1.5,2.5), main="Levels")
+plot(res.pcamix,choice="cor",main="Numerical variables")
+plot(res.pcamix,choice="sqload",coloring.var=T, leg=TRUE, posleg="topright", main="All variables")
+
+#Screeplot
+plot(res.pcamix$eig[,1],type="l",main="Screeplot")
+
+#Attempt with PCA from FactoMineR. All the qualitative variables were assigned as qualitative suplementary. Otherwise it was causing an issue with the function.
+res.pca <- PCA(df_json_metadata_enrich_sample,quali.sup = c(1,2,3,4,5,7,8,9,10,12,14,15,16,17,19,21,23,25,26,27,28,29,30,31,32,33,34,36,37),scale.unit = FALSE, graph=FALSE)
+
+res.pca$var$cor[,1:2]
+plot(res.pca$eig[,1],type="l",main="Screeplot")
+```
+
+# Annex: Save the files in a permanent data in order to be easily accessible
 ```{r}
 #To almost mimic the functionality of store or stores in R, you can do the following. Use save(x,y,z,file="Permdata") to save permanent objects in "permdata". When you exit R, do not save the workspace. Then all temporary objects will disappear. In your .Rprofile put the command load("Permdata") so that the next time you invoke R the permanent objects will be available.
-save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, file="Permanentdata")
-# Load the saved data
+save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, sorted_json_list3,df_json_metadata, df_json_metadata_enrich, res.pcamix,res.pca,file="Permanentdata")
+# Load the saved data. Warning: the setwd() must be pointing to the folder where the file is placed.
 load("Permanentdata")
 ```

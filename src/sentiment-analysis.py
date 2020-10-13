@@ -54,7 +54,6 @@ def clean_text(text):
         This is a ongoing cleaning function.
         The transformations below are proposed at first, but more cleasing might be included.
     """
-    text = text.lower()
     text = re.sub(r"what's", "what is ", text)
     text = re.sub(r"\'s", " ", text)
     text = re.sub(r"\'ve", " have ", text)
@@ -69,9 +68,7 @@ def clean_text(text):
     text = re.sub(r"\'scuse", " excuse ", text)
     text = re.sub(r"\'don't", " do not ", text)
     text = re.sub(r"\'didn't", " did not ", text)
-    text = re.sub('\W', ' ', text)
     text = re.sub('\s+', ' ', text)
-    text = re.sub(r'[^\w\s]', '', text)
     text = text.strip(' ')
     return text
 
