@@ -26,6 +26,8 @@ library("FactoMineR")
 library("mice")
 library("naniar")
 library("PCAmixdata")
+library("plyr")
+library("RSQLite")
 
 root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
@@ -874,6 +876,7 @@ summary(df_json_metadata_enrich)
 #Plot with missing values from raw data - all the sample
 gg_miss_var(df_json_metadata_enrich)
 ```
+
 ## Handling Missing Values and executing PCA
 ```{r}
 #The first variables have all observations with missing values, so we remove them because they do not add value for the analysis
@@ -932,6 +935,20 @@ res.pca <- PCA(df_json_metadata_enrich_sample,quali.sup = c(1,2,3,4,5,7,8,9,10,1
 
 res.pca$var$cor[,1:2]
 plot(res.pca$eig[,1],type="l",main="Screeplot")
+```
+
+# Conjoint Analysis
+```{r}
+conn <- dbConnect(SQLite(),'/Users/daniel/Downloads/database (2).sqlite')
+videos_words <- dbReadTable(conn,'videos_words') # 4590467 entries
+
+sum_video_words <- ddply(videos_words,.(VideoId),summarize,sumTdIdf = sum(TFIDF)) # 53986 entries
+
+sum_video_words_enrich_sample <- df_json_metadata_enrich_sample %>% mutate(sumTfIdf=ifelse(id %in% sum_video_words$VideoId,paste(sum_video_words$sumTdIdf),NA_character_))
+sum_video_words_enrich_sample <- sum_video_words_enrich_sample[complete.cases(sum_video_words_enrich_sample),] # 859 entries after NA removal
+
+conjoint <- lm(sumTfIdf~average_rating + dislike_count + duration + like_count + view_count + positive_comment + neutral_comment + negative_comment,data=sum_video_words_enrich_sample)
+summary(conjoint)
 ```
 
 # Annex: Save the files in a permanent data in order to be easily accessible
