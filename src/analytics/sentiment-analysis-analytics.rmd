@@ -11,7 +11,7 @@ root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
 filePath <- paste0(root_path,"youtubeProjectTFM/src/sentiment_analysis.csv")
 sentAnalysis <- read.csv(filePath,sep=",",header = T)
-
+class(sentAnalysis)
 summary(sentAnalysis)
 ```
 ```{r}

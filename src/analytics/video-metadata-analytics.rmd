@@ -937,7 +937,7 @@ res.pca$var$cor[,1:2]
 plot(res.pca$eig[,1],type="l",main="Screeplot")
 ```
 
-# Conjoint Analysis
+# Conjoint Analysis Attempt 1
 ```{r}
 conn <- dbConnect(SQLite(),'/Users/daniel/Downloads/database (2).sqlite')
 videos_words <- dbReadTable(conn,'videos_words') # 4590467 entries
@@ -951,10 +951,29 @@ conjoint <- lm(sumTfIdf~average_rating + dislike_count + duration + like_count +
 summary(conjoint)
 ```
 
+# Conjoint Analysis Attempt 2
+```{r}
+conjoint_data <- read.csv(file = paste0(root_path,"conjoint_data.csv"),sep = ";",header = TRUE)
+conjoint_data$ScoreVideo <- conjoint_data$ScoreVideo %>% gsub(pattern = ",",replacement = ".",.)
+conjoint_data$ScoreChannel <- conjoint_data$ScoreChannel %>% gsub(pattern = ",",replacement = ".",.)
+conjoint_data$LikeDislikeScore <- conjoint_data$LikeDislikeScore %>% gsub(pattern = ",",replacement = ".",.)
+conjoint_data$SentimentScore <- conjoint_data$SentimentScore %>% gsub(pattern = ",",replacement = ".",.)
+conjoint_data$ScoreVideo <- as.numeric(conjoint_data$ScoreVideo)
+conjoint_data$ScoreChannel <- as.numeric(conjoint_data$ScoreChannel)
+conjoint_data$LikeDislikeScore <- as.numeric(conjoint_data$LikeDislikeScore)
+conjoint_data$SentimentScore <- as.numeric(conjoint_data$SentimentScore)
+
+regression_multiple <- lm(Column1+Column2+Column3+Column4+Column5+Column6+Column7+Column8+Column9+Column10+Column11+Column12+Column13+Column14+Column15+Column16+Column17+Column18+Column19+Column20+Column21+Column22+Column23+Column24+Column25+Column26+Column27+Column28+Column29+Column30+Column31+Column32+Column33+Column34+Column35+Column36+Column37+Column38+Column39+Column40+Column41+Column42+Column43+Column44+Column45+Column46+Column47+Column48+Column49+Column50+Column51+Column52+Column53+Column54+Column55+Column56+Column57+Column58+Column59+Column60+Column61+Column62+Column63+Column64+Column65+Column66+Column67+Column68+Column69+Column70+Column71+Column72+Column73+Column74+Column75+Column76+Column77+Column78~ScoreVideo+ScoreChannel+LikeDislikeScore+SentimentScore,data = conjoint_data)
+conjoint_data
+
+summary(regression_multiple)
+
+```
+
 # Annex: Save the files in a permanent data in order to be easily accessible
 ```{r}
 #To almost mimic the functionality of store or stores in R, you can do the following. Use save(x,y,z,file="Permdata") to save permanent objects in "permdata". When you exit R, do not save the workspace. Then all temporary objects will disappear. In your .Rprofile put the command load("Permdata") so that the next time you invoke R the permanent objects will be available.
-save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, sorted_json_list3,df_json_metadata, df_json_metadata_enrich, res.pcamix,res.pca,file="Permanentdata")
+save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, sorted_json_list3,df_json_metadata, df_json_metadata_enrich, res.pcamix,res.pca,videos_words,file="Permanentdata")
 # Load the saved data. Warning: the setwd() must be pointing to the folder where the file is placed.
 load("Permanentdata")
 ```

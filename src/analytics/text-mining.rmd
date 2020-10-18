@@ -15,6 +15,8 @@ library("tm")
 library("RColorBrewer")
 library("wordcloud")
 library("wordcloud2")
+library("dplyr")
+library("tidyr")
 
 root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
@@ -37,8 +39,8 @@ setwd(root_path)
 
 # Reading and formatting the file
 ```{r}
-DATA_DIR <- system.file(root_path,package = "readtext")
-file_df <- readtext(paste0(DATA_DIR,"Files/ALL_Transcripts/*.txt"))
+#DATA_DIR <- system.file(root_path,package = "readtext")
+file_df <- readtext(paste0(root_path,"Files/ALL_Transcripts/*.txt"))
 #file_df<- data.frame(file)
 # Drop doc_id column
 file_df<- subset(file_df,select = -c(doc_id))
@@ -90,7 +92,7 @@ word_freq1 <- cbind(names(word_freq),as.integer(word_freq))
 head(word_freq1)
 ```
 
-# WordCloud:
+# General WordCloud:
 The feature of words can be illustrated as a word cloud as follow :
 - Word clouds add clarity and simplicity.
 - The most used keywords stand out better in a word cloud.
@@ -123,6 +125,121 @@ print(ngrams)
 # We didn't manage to process the function above. It executed for hours without any result. The goal we had was to analyse the most common tri-grams in the corpus.
 ```
 
+# Wordcloud per Category:
+In this secion we prepare the wordcloud for the transcripts per each different category selected for the project:
+- Beauty and Fitness;
+- Book and Literature;
+- Business and Industrial;
+- Computers and Electronics;
+- Food and Drink.
+```{r}
+file_df_cat <- readtext(paste0(root_path,"Files/ALL_Transcripts/*.txt"))
+#Replacing the pattern .en.txt in the doc_id column
+file_df_cat$doc_id<- gsub(pattern = ".en.txt",replacement = "",file_df_cat$doc_id)
+class(file_df_cat)
+head(file_df_cat)
+```
+
+```{r}
+#Assigning the correct category for the specific video id
+beauty_fitness <- read.delim(paste0(root_path,"Files/Beauty_Fitness.txt"),header=FALSE,sep=" ",dec=" ")
+books_literature <- read.delim(paste0(root_path,"Files/Books_Literature.txt"),header=FALSE,sep=" ",dec=" ")
+business_industrial <- read.delim(paste0(root_path,"Files/Business_Industrial.txt"),header=FALSE,sep=" ",dec=" ")
+computers_electronics <- read.delim(paste0(root_path,"Files/Computers_Electronics.txt"),header=FALSE,sep=" ",dec=" ")
+food_drink <- read.delim(paste0(root_path,"Files/Food_Drink.txt"),header=FALSE,sep=" ",dec=" ")
+file_df_cat2 <- file_df_cat
+
+file_df_cat2$category <- NA_character_
+file_df_cat2 <- file_df_cat2 %>% mutate(category=ifelse(doc_id %in% beauty_fitness$V1,paste("Beauty and Fitness"),category)) %>%
+    mutate(category=ifelse(doc_id %in% books_literature$V1,paste("Books and Literature"),category)) %>%
+    mutate(category=ifelse(doc_id %in% business_industrial$V1,paste("Business and Industrial"),category)) %>%
+    mutate(category=ifelse(doc_id %in% computers_electronics$V1,paste("Computers and Electronics"),category)) %>%
+    mutate(category=ifelse(doc_id %in% food_drink$V1,paste("Food and Drink"),category)) %>%
+  filter(category != "NA")
+
+file_df_beauty_fitness <- file_df_cat2 %>% filter(category == "Beauty and Fitness")
+file_df_books_literature <- file_df_cat2 %>% filter(category == "Books and Literature")
+file_df_business_industrial <- file_df_cat2 %>% filter(category == "Business and Industrial")
+file_df_computers_electronics <- file_df_cat2 %>% filter(category == "Computers and Electronics")
+file_df_food_drink <- file_df_cat2 %>% filter(category == "Food and Drink")
+```
+
+## Clean up all the files prior to Wordcloud
+```{r}
+preProcessWordCloudFunction <- function(file_df){
+    print("Removing backslash")
+    file_df_collapse<-gsub("\\\\","",file_df)
+    head(file_df_collapse)
+
+    print("To lower case")
+    file_df_collapse_lower <- tolower(file_df_collapse)
+    head(file_df_collapse_lower)
+    #Remove punctuation
+    print("Removing punctuation")
+    file_df_collapse_lower_rp <- gsub(pattern = "\\W", " ", file_df_collapse_lower)
+    #Remove digit
+    print("Removing digit")
+    file_df_collapse_lower_rp_rd <- gsub(pattern = "\\d", " ", file_df_collapse_lower_rp)
+
+    # stopwords()
+    print("Removing stop words")
+    file_df_collapse_lower_rp_rd_sw <- removeWords(file_df_collapse_lower_rp_rd, words = stopwords("english"))
+
+    # Remove single letters
+    print("Removing single letters")
+    file_df_collapse_lower_rp_rd_sw_sl <- gsub(pattern = "\\b[A-z]\\b{1}"," ", file_df_collapse_lower_rp_rd_sw)
+
+    # Remove white spaces using stripWhitespace() function,which is a part of  tm library.
+    print("Removing white spaces")
+    file_df_collapse_lower_rp_rd_sw_sl_stp <- stripWhitespace(file_df_collapse_lower_rp_rd_sw_sl)
+
+    return(file_df_collapse_lower_rp_rd_sw_sl_stp)
+}
+
+file_df_beauty_fitness <- preProcessWordCloudFunction(file_df_beauty_fitness)
+file_df_books_literature <- preProcessWordCloudFunction(file_df_books_literature)
+file_df_business_industrial <- preProcessWordCloudFunction(file_df_business_industrial)
+file_df_computers_electronics <- preProcessWordCloudFunction(file_df_computers_electronics)
+file_df_food_drink <- preProcessWordCloudFunction(file_df_food_drink)
+```
+## Wordcloud for Beauty and Fitness category
+```{r}
+file_df_beauty_fitness_freq <- strsplit(file_df_beauty_fitness, " ")
+word_cloud_beauty_fit <- unlist(file_df_beauty_fitness_freq)
+
+wordcloud(word_cloud_beauty_fit,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
+```
+## Wordcloud for Books and Literature category
+```{r}
+file_df_books_literature_freq <- strsplit(file_df_books_literature, " ")
+word_cloud_books_literature <- unlist(file_df_books_literature_freq)
+#Option 1
+wordcloud(word_cloud_books_literature,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
+```
+
+## Wordcloud for Business and Industrial category
+```{r}
+file_df_business_industrial_freq <- strsplit(file_df_business_industrial, " ")
+word_cloud_business_industrial <- unlist(file_df_business_industrial_freq)
+
+wordcloud(word_cloud_business_industrial,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
+```
+
+## Wordcloud for Computers and Electronics category
+```{r}
+file_df_computers_electronics_freq <- strsplit(file_df_computers_electronics, " ")
+word_cloud_computers_elec <- unlist(file_df_computers_electronics_freq)
+
+wordcloud(word_cloud_computers_elec,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
+```
+
+## Wordcloud for Food and Drink category
+```{r}
+file_df_food_drink_freq <- strsplit(file_df_food_drink, " ")
+word_cloud_food_drink <- unlist(file_df_food_drink_freq)
+#Option 1
+wordcloud(word_cloud_food_drink,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
+```
 # References:
 - WordCloud: https://acadgild.com/blog/text-mining-using-r
 - Reading multiple files: https://cran.r-project.org/web/packages/readtext/vignettes/readtext_vignette.html
