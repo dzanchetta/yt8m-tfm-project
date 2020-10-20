@@ -381,6 +381,7 @@ ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
 #new_video_likes <- definitive_ids %>% filter(invideolikes == "No")
 #write.table(new_video_likes$V1,file = "video-likes-diff.txt", sep = " ", row.names = FALSE, col.names = FALSE)
 ```
+
 ## Analyse if the issue with missing values in like and dislike has worked out
 ```{r}
 col_names <- c("Dislike Count","Like Count")
@@ -434,7 +435,7 @@ df_videos_without_sentAnalysis <- dataframeLikes[dataframeLikes$video_id %in% di
 summary(df_videos_without_sentAnalysis)
 ```
 
-# PCA Attempt 1
+# PCA Attempt 1 - unsuccessful
 It has been tested the PCA for the raw video data alongside sentiment analysis dataframe. To do so, a single dataframe has been built.
 ```{r}
 #Function used to sort the elements inside the list
@@ -939,46 +940,34 @@ res.pca$var$cor[,1:2]
 plot(res.pca$eig[,1],type="l",main="Screeplot")
 ```
 
-# PCA Attempt 2
+# PCA Attempt 2 - successful
 ```{r}
 pca_data <- read.xlsx(file=paste0(root_path,"conjoint_data.xlsx"),2)
 
 pca_data <- pca_data %>% dplyr::rename(video_id = VideoId)
-#Since the like and dislike information is missing in the data, we merge with the specific dataset containing like and dislike information by video_id
-pca_data_enrich <- merge(pca_data,dataframeLikes,by="video_id")
 
 #Converting ScoreVideo and ScoreChannel to numeric. Both data were character in excel
-pca_data_enrich$ScoreVideo <- as.numeric(pca_data_enrich$ScoreVideo)
-pca_data_enrich$ScoreChannel <- as.numeric(pca_data_enrich$ScoreChannel)
+pca_data$ScoreVideo <- as.numeric(pca_data$ScoreVideo)
+pca_data$ScoreChannel <- as.numeric(pca_data$ScoreChannel)
+pca_data$SentimentPositiveVideo <- as.numeric(pca_data$SentimentPositiveVideo)
 
 #2 steps executed in this pipeline: Calculate the LikeDislikeScore and SentimentScore and normalize the data to a maximum of 100
-pca_data_enrich <- pca_data_enrich  %>% mutate(LikeDislikeScore=(likeCount-dislikeCount)/viewCount) %>% mutate(SentimentScore = (SentimentPositiveVideo - SentimentNegativeVideo)/viewCount) %>% BBmisc::normalize(method = "range",range = c(0,100))
+pca_data_enrich <- pca_data  %>% mutate(LikeDislikeScore=(LikeCountVideo-DislikeCountVideo)/ViewCount) %>% mutate(SentimentScore = (SentimentPositiveVideo - SentimentNegativeVideo)/ViewCount) %>% BBmisc::normalize(method = "range",range = c(0,100))
 summary(pca_data_enrich)
 
 #Execution of PCA function
-res.pca.attempt2 <- PCA(pca_data_enrich,quali.sup =c(1:2,13:14),quanti.sup = c(5:12),scale.unit = FALSE)
+# Scale = FALSE
+res.pca.attempt2.scale.false <- PCA(pca_data_enrich,quanti.sup = c(1:2,5:9),scale.unit = FALSE)
 #Print the first principal component
-res.pca.attempt2$svd$V[,1]
+res.pca.attempt2.scale.false$svd$V[,1]
 
-#Screeplot
-plot(res.pca.attempt2$eig[,1],type="l",main="Screeplot")
+# Scale = TRUE - Disregarded
+#res.pca.attempt2.scale.false <- PCA(pca_data_enrich,quanti.sup = c(1:2,5:9),scale.unit = FALSE)
+#Print the first principal component
+#res.pca.attempt2.scale.false$svd$V[,1]
 ```
 
-# Conjoint Analysis Attempt 1
-```{r}
-conn <- dbConnect(SQLite(),'/Users/daniel/Downloads/database (2).sqlite')
-videos_words <- dbReadTable(conn,'videos_words') # 4590467 entries
-
-sum_video_words <- ddply(videos_words,.(VideoId),summarize,sumTdIdf = sum(TFIDF)) # 53986 entries
-
-sum_video_words_enrich_sample <- df_json_metadata_enrich_sample %>% mutate(sumTfIdf=ifelse(id %in% sum_video_words$VideoId,paste(sum_video_words$sumTdIdf),NA_character_))
-sum_video_words_enrich_sample <- sum_video_words_enrich_sample[complete.cases(sum_video_words_enrich_sample),] # 859 entries after NA removal
-
-conjoint <- lm(sumTfIdf~average_rating + dislike_count + duration + like_count + view_count + positive_comment + neutral_comment + negative_comment,data=sum_video_words_enrich_sample)
-summary(conjoint)
-```
-
-# Conjoint Analysis Attempt 2
+# Conjoint Analysis
 ```{r}
 conjoint_data <- read.xlsx(file=paste0(root_path,"conjoint_data.xlsx"),1)
 #summary(conjoint_data)
