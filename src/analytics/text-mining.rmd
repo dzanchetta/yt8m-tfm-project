@@ -1,11 +1,13 @@
 ---
-title: "R Notebook"
+title: "R Notebook - Analytics Zone"
 author: Group YoutubeFinder
 output: html_notebook
 ---
 
+> This RMarkdown represents the Analytics Zone and consists of the analysis that has been done in the Transcriptions files.
+
 # Text Mining: Generate the WordCloud for the Raw Transcripts (data from HDFS)
-```{r}
+```{r message = FALSE}
 # Importing the different libraries
 # The Reticulate package purposes is to connect to Python script. We built a Python script to transform the vtt format to plain text.
 library("reticulate")
@@ -22,7 +24,7 @@ root_path <- "/Users/daniel/LocalFiles for TFM/"
 setwd(root_path)
 ```
 
-```{r}
+```{r eval = FALSE, echo = FALSE, warning = FALSE}
 # DISCLAIMER: this code should only be executed the first time.
 
 # Process to clean up and read the Transcript Data
@@ -38,7 +40,7 @@ setwd(root_path)
 ```
 
 # Reading and formatting the file
-```{r}
+```{r eval = FALSE, echo = TRUE, warning = FALSE}
 #DATA_DIR <- system.file(root_path,package = "readtext")
 file_df <- readtext(paste0(root_path,"Files/ALL_Transcripts/*.txt"))
 #file_df<- data.frame(file)
@@ -49,7 +51,7 @@ head(file_df)
 ```
 
 # Process to clean up the text
-```{r}
+```{r eval = FALSE, echo = TRUE,warning = FALSE}
 print("Removing backslash")
 file_df_collapse<-gsub("\\\\","",file_df)
 head(file_df_collapse)
@@ -78,7 +80,7 @@ file_df_collapse_lower_rp_rd_sw_sl_stp <- stripWhitespace(file_df_collapse_lower
 ```
 
 # Frequency of words:
-```{r}
+```{r eval = FALSE, echo = TRUE, warning = FALSE}
 # Split individual words and add space between them
 print("Processing frequency words")
 file_df_collapse_lower_rp_rd_sw_sl_stp_f <- strsplit(file_df_collapse_lower_rp_rd_sw_sl_stp, " ")
@@ -92,39 +94,30 @@ word_freq1 <- cbind(names(word_freq),as.integer(word_freq))
 head(word_freq1)
 ```
 
-# General WordCloud:
-The feature of words can be illustrated as a word cloud as follow :
-- Word clouds add clarity and simplicity.
-- The most used keywords stand out better in a word cloud.
-- Word clouds are a dynamic tool for communication.  Easy to understand, to be shared and are impressive words representation.
+# General Information about WordCloud:
+The feature of words can be illustrated as a word cloud as follow:
+* Word clouds add clarity and simplicity.
+* The most used keywords stand out better in a word cloud.
+* Word clouds are a dynamic tool for communication. Easy to understand, to be shared and are impressive words representation.
 
-Parameters:
-**words**: the words to be plotted i.e; word_cloud where we have saved the text-data.
-**Freq**: word frequencies
-**min.freq**: words with a frequency below min.freq will not be plotted.
-**max .words**: maximum number of words to be plotted
-**random.order**: plot words in random order. If false, then words will be plotted in decreasing frequency
-**Rot.per**: to adjust  proportion words with 90-degree rotation (vertical text)
-**colors**: color words from least to most frequent. Use, for example, colors =“Red” for a single color or “random-dark”, “random-light”.
+* Parameters:
+    + **words**: the words to be plotted i.e; word_cloud where we have saved the text-data.
+    + **Freq**: word frequencies
+    + **min.freq**: words with a frequency below min.freq will not be plotted.
+    + **max .words**: maximum number of words to be plotted
+    + **random.order**: plot words in random order. If false, then words will be plotted in decreasing frequency
+    + **Rot.per**: to adjust  proportion words with 90-degree rotation (vertical text)
+    + **colors**: color words from least to most frequent. Use, for example, colors =“Red” for a single color or “random-dark”, “random-light”.
 
-```{r}
+```{r eval = FALSE, echo = TRUE}
 print("Processing Word Cloud")
 word_cloud <- unlist(file_df_collapse_lower_rp_rd_sw_sl_stp_f)
 #Option 1
 wordcloud(word_cloud,min.freq = 50, max.words=500, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,0.2))
 #Option 2
 wordcloud2(word_freq,color = "random-dark", backgroundColor = "white",size = 0.7)
-
-#N-grams
-# Find out the most common collocations. https://www.springboard.com/blog/text-mining-in-r/
-library("quanteda")
-# Quantitative Analysis of Textual Data
-#textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)
-ngrams<-textstat_collocations(file_df_collapse_lower_rp_rd_sw_sl_stp,size = 3)
-print(ngrams)
-# We didn't manage to process the function above. It executed for hours without any result. The goal we had was to analyse the most common tri-grams in the corpus.
 ```
-
+***
 # Wordcloud per Category:
 In this secion we prepare the wordcloud for the transcripts per each different category selected for the project:
 - Beauty and Fitness;
@@ -132,7 +125,7 @@ In this secion we prepare the wordcloud for the transcripts per each different c
 - Business and Industrial;
 - Computers and Electronics;
 - Food and Drink.
-```{r}
+```{r warning = FALSE}
 file_df_cat <- readtext(paste0(root_path,"Files/ALL_Transcripts/*.txt"))
 #Replacing the pattern .en.txt in the doc_id column
 file_df_cat$doc_id<- gsub(pattern = ".en.txt",replacement = "",file_df_cat$doc_id)
@@ -140,7 +133,7 @@ class(file_df_cat)
 head(file_df_cat)
 ```
 
-```{r}
+```{r warning = FALSE}
 #Assigning the correct category for the specific video id
 beauty_fitness <- read.delim(paste0(root_path,"Files/Beauty_Fitness.txt"),header=FALSE,sep=" ",dec=" ")
 books_literature <- read.delim(paste0(root_path,"Files/Books_Literature.txt"),header=FALSE,sep=" ",dec=" ")
@@ -165,7 +158,7 @@ file_df_food_drink <- file_df_cat2 %>% filter(category == "Food and Drink")
 ```
 
 ## Clean up all the files prior to Wordcloud
-```{r}
+```{r warning = FALSE}
 preProcessWordCloudFunction <- function(file_df){
     print("Removing backslash")
     file_df_collapse<-gsub("\\\\","",file_df)
@@ -203,14 +196,14 @@ file_df_computers_electronics <- preProcessWordCloudFunction(file_df_computers_e
 file_df_food_drink <- preProcessWordCloudFunction(file_df_food_drink)
 ```
 ## Wordcloud for Beauty and Fitness category
-```{r}
+```{r warning = FALSE}
 file_df_beauty_fitness_freq <- strsplit(file_df_beauty_fitness, " ")
 word_cloud_beauty_fit <- unlist(file_df_beauty_fitness_freq)
 
 wordcloud(word_cloud_beauty_fit,min.freq = 50, max.words=200, random.order=F, rot.per=0.2, colors=brewer.pal(5, "Dark2"), scale=c(4,1))
 ```
 ## Wordcloud for Books and Literature category
-```{r}
+```{r warning = FALSE}
 file_df_books_literature_freq <- strsplit(file_df_books_literature, " ")
 word_cloud_books_literature <- unlist(file_df_books_literature_freq)
 #Option 1
@@ -218,7 +211,7 @@ wordcloud(word_cloud_books_literature,min.freq = 50, max.words=200, random.order
 ```
 
 ## Wordcloud for Business and Industrial category
-```{r}
+```{r warning = FALSE}
 file_df_business_industrial_freq <- strsplit(file_df_business_industrial, " ")
 word_cloud_business_industrial <- unlist(file_df_business_industrial_freq)
 
@@ -226,7 +219,7 @@ wordcloud(word_cloud_business_industrial,min.freq = 50, max.words=200, random.or
 ```
 
 ## Wordcloud for Computers and Electronics category
-```{r}
+```{r warning = FALSE}
 file_df_computers_electronics_freq <- strsplit(file_df_computers_electronics, " ")
 word_cloud_computers_elec <- unlist(file_df_computers_electronics_freq)
 
@@ -234,7 +227,7 @@ wordcloud(word_cloud_computers_elec,min.freq = 50, max.words=200, random.order=F
 ```
 
 ## Wordcloud for Food and Drink category
-```{r}
+```{r warning = FALSE}
 file_df_food_drink_freq <- strsplit(file_df_food_drink, " ")
 word_cloud_food_drink <- unlist(file_df_food_drink_freq)
 #Option 1

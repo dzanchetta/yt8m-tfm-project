@@ -940,7 +940,7 @@ res.pca$var$cor[,1:2]
 plot(res.pca$eig[,1],type="l",main="Screeplot")
 ```
 
-# PCA Attempt 2 - successful
+# PCA Attempt 2 - Successful
 ```{r}
 pca_data <- read.xlsx(file=paste0(root_path,"conjoint_data.xlsx"),2)
 

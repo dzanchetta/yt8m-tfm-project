@@ -1,6 +1,12 @@
 import pandas as pd
 import altair as alt
 import altair_viewer as viewer
+
+'''
+NOTE: 
+This code aims at preparing and printing the visualization of the sentiment analysis grouped by the different categories.
+'''
+
 #Read dataset
 df = pd.read_csv("/Users/daniel/LocalFiles for TFM/sentiment-analysis-analytics.csv")
 print(df.head())
