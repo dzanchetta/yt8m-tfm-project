@@ -1,13 +1,14 @@
 ---
-title: "R Notebook"
+title: "R Notebook - Analytics Zone"
 author: Group YoutubeFinder
 output: html_notebook
 ---
 # Analytics of the Video Metadata datasets
-**Obs**: All the analysis performed throughout this R markdown is better explained in the written document. There it is detailed the motivations and reasoning for each process.
+> This RMarkdown represents the Analytics Zone and consists of the analysis that has been done in the Video Metadata files.
+> **Obs**: All the analysis performed throughout this R markdown is better explained in the written document. There it is detailed the motivations and reasoning for each process and section.
 
-## Import procedure
-```{r}
+# Import libraries
+```{r message = FALSE}
 library("readtext")
 library("jsonlite")
 library("rjson")
@@ -36,7 +37,20 @@ setwd(root_path)
 
 ```
 
-```{r}
+# Extra: Save the files in a permanent data in order to be easily readable
+```{r eval = FALSE, echo = TRUE}
+#To almost mimic the functionality of store or stores in R, you can do the following. Use save(x,y,z,file="Permdata") to save permanent objects in "permdata". When you exit R, do not save the workspace. Then all temporary objects will disappear. In your .Rprofile put the command load("Permdata") so that the next time you invoke R the permanent objects will be available.
+save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, sorted_json_list3,df_json_metadata, df_json_metadata_enrich, res.pcamix,res.pca,videos_words,dataframeLikes,file="Permanentdata")
+```
+
+```{r eval = TRUE, echo = TRUE, warning = FALSE}
+# Load the saved data. Warning: the setwd() must be pointing to the folder where the file is placed.
+load(paste0(root_path,"Permanentdata"))
+```
+
+```{r eval = FALSE}
+# This is not executed in the knitr part because it was previously saved in the permanent data. This process is slow, takes approximately 1h30min to create the json_list object, even using parallel library
+
 # This is a temporary solution to read the files from local repository
 # Later they should be read from HDFS
 # File location: https://drive.google.com/file/d/1ERz6um0Wy2Qzjh76AlHZ70dt1Dc26JZJ/view?usp=sharing
@@ -44,7 +58,7 @@ setwd(root_path)
 
 #Reading the files using parallel (takes on average 1h30min to finish)
 cl <- makeCluster(detectCores() - 1)
-#Parallel not functioning in RStudio https://github.com/rstudio/rstudio/issues/6692
+#Parallel not working in RStudio https://github.com/rstudio/rstudio/issues/6692
 json_files<-list.files(path =paste0(root_path,"Files/video-content/"),pattern="*.json",full.names = TRUE)
 json_list<-parLapply(cl,json_files,function(x) rjson::fromJSON(file=x,method = "R"))
 stopCluster(cl)
@@ -56,9 +70,9 @@ length(json_list)
 lengths(json_list)
 # Each list with 64 elements
 ```
-
+***
 # Calculating **Missing Values** for the main elements in video metadata
-```{r}
+```{r warning = FALSE}
 #Function works only for list type variables
 function_is_null <- function(x, var = " "){
   len <- length(x)
@@ -98,11 +112,11 @@ ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
   labs(x='variable', y="number of missing values", title='Missing Values Analysis Main Variables') +
   coord_flip() + geom_text(aes(label=value))
 ```
-
+***
 # Language Detection Analysis
 
-## Test CLD3 package
-```{r}
+## Testing CLD3 package
+```{r warning = FALSE}
 #Function works only for list type variables
 fun_transf_df_language_detection_cld3 <- function(x,var1 = " ",var2=" "){
   len <- length(x)
@@ -125,11 +139,11 @@ fun_transf_df_language_detection_cld3 <- function(x,var1 = " ",var2=" "){
 df_language_fulltitle <- fun_transf_df_language_detection_cld3(json_list,"fulltitle","description")
 summary_cld3 <- df_language_fulltitle %>%
   group_by(Language_Detected) %>%
-  summarise(count=n()) %>% arrange(desc(count))
+  dplyr::summarize(count=n()) %>% arrange(desc(count))
 ```
 
-## Test Texcat package
-```{r}
+## Testing Texcat package
+```{r warning = FALSE}
 fun_transf_df_language_detection_textcat <- function(x,var1 = " ",var2=" "){
   len <- length(x)
   for(i in 1:len){
@@ -151,10 +165,11 @@ fun_transf_df_language_detection_textcat <- function(x,var1 = " ",var2=" "){
 df_language_fulltitle_textcat <- fun_transf_df_language_detection_textcat(json_list,"fulltitle","description")
 summary_textcat <- df_language_fulltitle_textcat %>%
   group_by(Language_Detected) %>%
-  summarise(count=n()) %>% arrange(desc(count))
+  dplyr::summarize(count=n()) %>% arrange(desc(count))
 ```
 
-```{r}
+## Testing the results using a few random samples (visual checking against the original data)
+```{r warning = FALSE}
 # Testing the results
 sample <- sample(1:length(json_list),round(0.0001*length(json_list)))
 for(i in 1:length(sample)){
@@ -167,9 +182,9 @@ for(i in 1:length(sample)){
     }
 }
 ```
-
+***
 # Analysis to find out how the datasets are balanced
-```{r}
+```{r warning = FALSE}
 definitive_ids <- read.delim(paste0(root_path,"Files/definitive_videoids_updated_20200901.txt"),header=FALSE,sep=" ",dec=" ")
 beauty_fitness <- read.delim(paste0(root_path,"Files/Beauty_Fitness.txt"),header=FALSE,sep=" ",dec=" ")
 books_literature <- read.delim(paste0(root_path,"Files/Books_Literature.txt"),header=FALSE,sep=" ",dec=" ")
@@ -194,9 +209,10 @@ new_food_drink <- food_drink %>% filter(check == "Yes")
 
 result_balance<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
 colnames(result_balance) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
-View(result_balance)
+#View(result_balance)
 
 # Check how many Ids are present in all categories and which are exclusive per category
+# Attempt 1: not good therefore not used
 '%notin%' <- Negate('%in%')
 definitive_ids$check_all <- ifelse((definitive_ids$V1 %in% food_drink$V1 &
                                                definitive_ids$V1 %in% computers_electronics$V1 &
@@ -243,6 +259,8 @@ exclusive_balance<-data.frame(nrow(definitive_ids %>% filter(check_all == "Yes")
 colnames(exclusive_balance) <- c("In All Cats","Food & Drink","Computers & Electronics","Business & Industrial","Books & Literature","Beauty & Fitness")
 
 ###
+#Attempt 2: good, therefore used
+
 definitive_ids$inbeautyfitness<- ifelse(definitive_ids$V1 %in% beauty_fitness$V1,"Yes", "No")
 new_beauty_fitness <- definitive_ids %>% filter(inbeautyfitness == "Yes")
 
@@ -260,19 +278,19 @@ new_food_drink <- definitive_ids %>% filter(infooddrink == "Yes")
 
 third_balance_test<-data.frame(nrow(new_beauty_fitness),nrow(new_books_literature),nrow(new_business_industrial),nrow(new_computers_electronics),nrow(new_food_drink))
 colnames(third_balance_test) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
-View(third_balance_test)
+#View(third_balance_test)
 
 melted <- melt(third_balance_test[, 1:ncol(third_balance_test)])
 ggplot(melted, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
   labs(x='YouTube-8M defined category name', y="number of video ids randomly selected", title='Number of IDs selected by Category in YouTube-8M') +
   coord_flip() + geom_text(aes(label=value))
 ```
-
+***
 # Checking the total number of video ids per category from the **Original files in Youtube-8M**
-```{r}
+```{r warning = FALSE}
 original_datasets_balance<-data.frame(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(computers_electronics),nrow(food_drink))
 colnames(original_datasets_balance) <- c("Beauty & Fitness","Books & Literature", "Business & Industrial","Computers & Electronics","Food & Drink")
-View(original_datasets_balance)
+#View(original_datasets_balance)
 
 melted <- melt(original_datasets_balance[, 1:ncol(original_datasets_balance)])
 ggplot(melted, aes(x = variable, y = value)) + geom_bar(stat = "identity",position = "dodge") +
@@ -282,8 +300,8 @@ ggplot(melted, aes(x = variable, y = value)) + geom_bar(stat = "identity",positi
 
 sum(nrow(beauty_fitness),nrow(books_literature),nrow(business_industrial),nrow(computers_electronics),nrow(food_drink))
 ```
-
-```{r}
+***
+```{r eval = FALSE, echo = TRUE}
 # DISCLAIMER: We've tried but it is not working to open direct from HDFS.
 # Parameters
 hdfsUri <- "https://10.0.2.15:50470"
@@ -293,10 +311,10 @@ optionnalParameters <- ""
 uri <- paste0(hdfsUri, fileUri, readParameter, optionnalParameters)
 data <- read.delim(uri)
 ```
+***
 
 # Analysis on the Video Ids that we obtained Transcripts but we didn't obtain Metadata
-
-```{r}
+```{r eval = TRUE, echo = TRUE, warning = FALSE}
 cl <- makeCluster(detectCores() - 1)
 json_like_files<-list.files(path =paste0(root_path,"Files/video-likes"),pattern="*.json",full.names = TRUE)
 json_like_list<-parLapply(cl,json_like_files,function(x) rjson::fromJSON(file=x,method = "R"))
@@ -315,7 +333,9 @@ dataframeLikes <- bind_rows(lapply(json_like_list, as.data.frame.list))
 dataframeLikes$viewCount <- as.numeric(dataframeLikes$viewCount)
 dataframeLikes$likeCount <- as.numeric(dataframeLikes$likeCount)
 dataframeLikes$dislikeCount <- as.numeric(dataframeLikes$dislikeCount)
+```
 
+```{r warning = FALSE}
 #Summary
 summary(dataframeLikes)
 
@@ -332,15 +352,22 @@ boxplot(dataframeLikes$dislikeCount, names = "Dislike Count",las = 2, col = "roy
 mtext("Count", side = 2, line = 3)
 
 par(op)
+```
 
+```{r eval=FALSE, warning = FALSE}
 # Check the ids in the transcript files that are not present in the video metadata
 transcript_files<-list.files(path =paste0(root_path,"Files/ALL_Transcripts"),pattern="*.txt",full.names = TRUE)
 #Get the video ids that have transcript
+transcript_video_ids <- data.frame()
 for (i in 1:length((transcript_files))){
   filename <- basename(transcript_files[i]) %>% gsub(pattern = ".en.txt",replacement = "",.)
   transcript_video_ids <- rbind(transcript_video_ids,filename)
 }
+```
 
+```{r eval=FALSE}
+json_files<-list.files(path =paste0(root_path,"Files/video-content/"),pattern="*.json",full.names = TRUE)
+json_video_ids <- data.frame()
 #Get video ids that have video metadata
 for (i in 1:length((json_files))){
   filename <- basename(json_files[i]) %>% gsub(pattern = ".info.json",replacement = "",.)
@@ -381,9 +408,9 @@ ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
 #new_video_likes <- definitive_ids %>% filter(invideolikes == "No")
 #write.table(new_video_likes$V1,file = "video-likes-diff.txt", sep = " ", row.names = FALSE, col.names = FALSE)
 ```
-
+***
 ## Analyse if the issue with missing values in like and dislike has worked out
-```{r}
+```{r eval = FALSE, warning = FALSE}
 col_names <- c("Dislike Count","Like Count")
 df_fixed_likes <- data.frame(nrow(dataframeLikes[is.na(dataframeLikes$dislikeCount),]),nrow(dataframeLikes[is.na(dataframeLikes$likeCount),]))
 colnames(df_fixed_likes) <- col_names
@@ -394,15 +421,18 @@ ggplot(cd274, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
   labs(x='variable', y="number of missing values", title='Count of Missing Values for Like and Dislike Count') +
   coord_flip() + geom_text(aes(label=value))
 ```
-
-```{r}
+***
+```{r eval = FALSE, warning = FALSE}
 df_videos_without_metadata <- dataframeLikes[dataframeLikes$video_id %in% diff_lists$diff_lists,]
 summary(df_videos_without_metadata)
 ```
+***
 # Analysis on the Video Ids that we obtained Transcripts but we didn't obtain Sentiment Analysis calculation
-```{r}
+```{r eval=FALSE, warning = FALSE}
 sentAnalysis <- read.csv(paste0(root_path,"youtubeProjectTFM/src/sentiment_analysis.csv"),sep=",",header = T)
 diff_lists_t_sa<-setdiff(transcript_video_ids,sentAnalysis$video_id)
+head(sentAnalysis)
+head(transcript_video_ids)
 diff_lists_t_sa <- as.data.frame(diff_lists_t_sa)
 
 diff_lists_t_sa$inbeautyfitness<- ifelse(diff_lists_t_sa$diff_lists_t_sa %in% beauty_fitness$V1,"Yes", "No")
@@ -430,15 +460,25 @@ ggplot(dat.m, aes(x = variable, y = value)) + geom_bar(stat = "identity",positio
   coord_flip()
 ```
 
-```{r}
+***
+```{r eval=FALSE}
 df_videos_without_sentAnalysis <- dataframeLikes[dataframeLikes$video_id %in% diff_lists_t_sa$diff_lists_t_sa,]
 summary(df_videos_without_sentAnalysis)
 ```
+***
 
-# PCA Attempt 1 - unsuccessful
-It has been tested the PCA for the raw video data alongside sentiment analysis dataframe. To do so, a single dataframe has been built.
-```{r}
+# Defining the global score
+# First Technique: PCA
+
+## Attempt 1
+> This attempt was not finally successful because the way the data was organized and the formula was executed, was not finally correct because the indicators were not taken into account, only the variables separately. However we left the attempt here.
+
+* It has been tested the PCA for the raw video data alongside sentiment analysis dataframe. To do so, a single dataframe has been built.
+### Preparing the data
+```{r warning = FALSE}
 #Function used to sort the elements inside the list
+sentAnalysis <- read.csv(paste0(root_path,"youtubeProjectTFM/src/sentiment_analysis.csv"),sep=",",header = T)
+
 fun_sort <- function(file){
   for(i in 1:length(file)){
     file[[i]] <- file[[i]][sort(names(file[[i]]))]
@@ -880,8 +920,8 @@ summary(df_json_metadata_enrich)
 gg_miss_var(df_json_metadata_enrich)
 ```
 
-## Handling Missing Values and executing PCA
-```{r}
+### Handling Missing Values and executing PCA
+```{r warning = FALSE}
 #The first variables have all observations with missing values, so we remove them because they do not add value for the analysis
 df_json_metadata_enrich <- select(df_json_metadata_enrich,-c(track,start_time,series,season_number,release_year,release_date,playlist_index,playlist,license,is_live,episode_number,end_time,creator,chapters,artist,annotations,alt_title,album,player_url,filesize))
 
@@ -902,12 +942,13 @@ df_json_metadata_enrich$width <- as.numeric(df_json_metadata_enrich$width)
 #Keep only the complete cases, removing all rows with at least one NA
 df_json_metadata_enrich <- df_json_metadata_enrich[complete.cases(df_json_metadata_enrich),]
 #57517 observations
+head(df_json_metadata_enrich)
 
 summary(df_json_metadata_enrich)
 ```
 
-## Finally, executing PCA
-```{r}
+### Finally, executing PCA
+```{r warning = FALSE}
 set.seed(777)
 #Sampling the dataset in order to try and be capable of executing the pca (2% of the dataset, approx 1150 random records)
 pca_sample <- sample(seq_len(nrow(df_json_metadata_enrich)),size = nrow(df_json_metadata_enrich)*0.02)
@@ -940,9 +981,12 @@ res.pca$var$cor[,1:2]
 plot(res.pca$eig[,1],type="l",main="Screeplot")
 ```
 
-# PCA Attempt 2 - Successful
-```{r}
+## Attempt 2
+> This attempt was the one we considered successful, finally the one used for the project to define the global score
+
+```{r warning = FALSE}
 pca_data <- read.xlsx(file=paste0(root_path,"conjoint_data.xlsx"),2)
+head(pca_data)
 
 pca_data <- pca_data %>% dplyr::rename(video_id = VideoId)
 
@@ -966,21 +1010,16 @@ res.pca.attempt2.scale.false$svd$V[,1]
 #Print the first principal component
 #res.pca.attempt2.scale.false$svd$V[,1]
 ```
+***
 
-# Conjoint Analysis
-```{r}
+# Second Technique: Conjoint Analysis
+```{r warning = FALSE}
 conjoint_data <- read.xlsx(file=paste0(root_path,"conjoint_data.xlsx"),1)
+head(conjoint_data)
 #summary(conjoint_data)
 
 regression_multiple <- lm(Column1+Column2+Column3+Column4+Column5+Column6+Column7+Column8+Column9+Column10+Column11+Column12+Column13+Column14+Column15+Column16+Column17+Column18+Column19+Column20+Column21+Column22+Column23+Column24+Column25+Column26+Column27+Column28+Column29+Column30+Column31+Column32+Column33+Column34+Column35+Column36+Column37+Column38+Column39+Column40+Column41+Column42+Column4+Column44+Column45+Column46+Column47+Column48+Column49+Column50+Column51+Column52+Column53+Column54+Column55+Column56+Column57+Column58+Column59+Column60+Column61+Column62+Column63+Column64+Column65~ScoreVideo+ScoreChannel+LikeDislikeScore+SentimentScore,data = conjoint_data)
 
 summary(regression_multiple)
-```
-
-# Annex: Save the files in a permanent data in order to be easily accessible
-```{r}
-#To almost mimic the functionality of store or stores in R, you can do the following. Use save(x,y,z,file="Permdata") to save permanent objects in "permdata". When you exit R, do not save the workspace. Then all temporary objects will disappear. In your .Rprofile put the command load("Permdata") so that the next time you invoke R the permanent objects will be available.
-save(json_list,df_language_fulltitle,df_language_fulltitle_textcat, sorted_json_list3,df_json_metadata, df_json_metadata_enrich, res.pcamix,res.pca,videos_words,dataframeLikes,file="Permanentdata")
-# Load the saved data. Warning: the setwd() must be pointing to the folder where the file is placed.
-load(paste0(root_path,"Permanentdata"))
+plot(regression_multiple)
 ```
